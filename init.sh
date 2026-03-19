@@ -18,7 +18,7 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$ROOT_DIR"
 
 ENV_FILE="$ROOT_DIR/.env"
-[[ -f "$ENV_FILE" ]] || die ".env не найден в $ROOT_DIR\nСоздайте его: cp .env.example .env && nano .env"
+[[ -f "$ENV_FILE" ]] || die ".env не найден в $ROOT_DIR\nСоздайте его: cp .env.prod.example .env && nano .env"
 set -a
 # shellcheck disable=SC1090
 source "$ENV_FILE"

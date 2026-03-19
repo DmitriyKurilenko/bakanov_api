@@ -30,6 +30,7 @@ DB_SERVICE_NAME="${DB_SERVICE_NAME:-db}"
 DB_CONTAINER_USER="${DB_CONTAINER_USER:-${POSTGRES_USER:-postgres}}"
 DB_CONTAINER_NAME="${DB_CONTAINER_NAME:-${POSTGRES_DB:-postgres}}"
 HEALTHCHECK_URL="${HEALTHCHECK_URL:-http://127.0.0.1:8000/api/healthz}"
+HEALTHCHECK_HOST="${HEALTHCHECK_HOST:-}"
 PREFLIGHT_STRICT="${PREFLIGHT_STRICT:-1}"
 SKIP_PULL=${SKIP_PULL:-0}
 SKIP_BUILD=${SKIP_BUILD:-0}
@@ -55,6 +56,7 @@ _usage() {
   DB_CONTAINER_USER     = $DB_CONTAINER_USER
   DB_CONTAINER_NAME     = $DB_CONTAINER_NAME
   HEALTHCHECK_URL       = $HEALTHCHECK_URL
+  HEALTHCHECK_HOST      = $HEALTHCHECK_HOST
   PREFLIGHT_STRICT      = $PREFLIGHT_STRICT
 EOF
 }
@@ -87,6 +89,14 @@ is_truthy() {
   local value
   value="$(echo "${1:-}" | tr '[:upper:]' '[:lower:]')"
   [[ "$value" == "1" || "$value" == "true" || "$value" == "yes" || "$value" == "on" ]]
+}
+
+csv_contains_value() {
+  local csv="${1:-}"
+  local value="${2:-}"
+  [[ -n "$value" ]] || return 1
+  local normalized=",${csv// /},"
+  [[ "$normalized" == *",$value,"* ]]
 }
 
 run_preflight() {
@@ -163,6 +173,18 @@ run_preflight() {
     warnings+=("ALLOWED_HOSTS should contain explicit hostnames")
   fi
   warn_if_empty "CSRF_TRUSTED_ORIGINS"
+  if ! is_truthy "${DEBUG:-false}"; then
+    if [[ -z "${DOMAIN:-}" ]]; then
+      warnings+=("DOMAIN is empty when DEBUG=0; set DOMAIN for server healthcheck and nginx config")
+    else
+      if ! csv_contains_value "${ALLOWED_HOSTS:-}" "${DOMAIN}"; then
+        warnings+=("ALLOWED_HOSTS should include DOMAIN ($DOMAIN)")
+      fi
+      if ! csv_contains_value "${CSRF_TRUSTED_ORIGINS:-}" "https://${DOMAIN}"; then
+        warnings+=("CSRF_TRUSTED_ORIGINS should include https://$DOMAIN")
+      fi
+    fi
+  fi
 
   local spam_enabled=0
   local key
@@ -233,8 +255,30 @@ assert_service_running() {
   fi
 }
 
+resolve_healthcheck_host() {
+  if [[ -n "${HEALTHCHECK_HOST:-}" ]]; then
+    echo "$HEALTHCHECK_HOST"
+    return 0
+  fi
+
+  if [[ -n "${DOMAIN:-}" ]]; then
+    echo "$DOMAIN"
+    return 0
+  fi
+
+  local first_allowed="${ALLOWED_HOSTS%%,*}"
+  first_allowed="${first_allowed// /}"
+  if [[ -n "$first_allowed" && "$first_allowed" != "*" ]]; then
+    echo "$first_allowed"
+    return 0
+  fi
+
+  echo "localhost"
+}
+
 log "Деплой $(date '+%Y-%m-%d %H:%M:%S') — $ROOT_DIR"
 run_preflight "$ENV_FILE" "$PREFLIGHT_STRICT"
+HEALTHCHECK_HOST="$(resolve_healthcheck_host)"
 
 if [[ "$PREFLIGHT_ONLY" == "1" ]]; then
   log "Preflight-only режим: проверки завершены, выходим."
@@ -308,11 +352,11 @@ assert_service_running "celery_beat"
 
 MAX_HEALTH_RETRIES=20
 for i in $(seq 1 "$MAX_HEALTH_RETRIES"); do
-  if compose_cmd exec -T web python -c "import json,sys,urllib.request; body=urllib.request.urlopen('$HEALTHCHECK_URL',timeout=5).read().decode('utf-8'); data=json.loads(body); sys.exit(0 if data.get('status')=='ok' else 1)" >/dev/null 2>&1; then
+  if compose_cmd exec -T web python -c "import json,sys,urllib.request; req=urllib.request.Request('$HEALTHCHECK_URL', headers={'Host':'$HEALTHCHECK_HOST','X-Forwarded-Proto':'https'}); body=urllib.request.urlopen(req,timeout=5).read().decode('utf-8'); data=json.loads(body); sys.exit(0 if data.get('status')=='ok' else 1)" >/dev/null 2>&1; then
     break
   fi
   if [[ $i -eq $MAX_HEALTH_RETRIES ]]; then
-    die "Healthcheck не прошёл: $HEALTHCHECK_URL"
+    die "Healthcheck не прошёл: $HEALTHCHECK_URL (Host: $HEALTHCHECK_HOST)"
   fi
   sleep 2
 done

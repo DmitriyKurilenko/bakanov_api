@@ -2,6 +2,12 @@
 
 ## 1. Подготовка `.env`
 
+Рекомендуемая база:
+
+```bash
+cp .env.prod.example .env
+```
+
 Минимум для приложения:
 
 - `SECRET_KEY`
@@ -10,11 +16,13 @@
 - `POSTGRES_PASSWORD`
 - `ALLOWED_HOSTS`
 - `CSRF_TRUSTED_ORIGINS`
+- `DOMAIN`
 - `DEBUG=false`
 - `SECURE_SSL_REDIRECT=true`
 - `SESSION_COOKIE_SECURE=true`
 - `CSRF_COOKIE_SECURE=true`
 - `SECURE_HSTS_SECONDS=31536000`
+- `HEALTHCHECK_HOST` (обычно равен `DOMAIN`, можно не задавать отдельно)
 
 Для связки amoCRM -> Метрика (спам-лиды):
 
