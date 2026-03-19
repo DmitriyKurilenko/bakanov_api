@@ -1,0 +1,386 @@
+{% extends 'base.html' %}
+{% block title %}{{ report.title }}{% endblock %}
+{% block content %}
+<div class="space-y-4" x-data="reportPage()" x-init="init()">
+  <div class="space-y-2">
+    <div class="breadcrumbs text-sm">
+      <ul>
+        <li><a href="{% url 'dashboard:reports-home' %}">Отчеты</a></li>
+        <li>{{ report.title }}</li>
+      </ul>
+    </div>
+    <div class="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-2">
+      <div>
+        <h1 class="text-xl md:text-2xl font-bold">{{ report.title }}</h1>
+        <p class="opacity-70 text-sm">{{ report.description }}</p>
+      </div>
+      {% if report_links %}
+      <div role="tablist" class="tabs tabs-boxed tabs-sm bg-base-100 border border-base-200">
+        {% for item in report_links %}
+          <a role="tab" href="{{ item.url }}" class="tab {% if item.key == report.key %}tab-active{% endif %}">{{ item.title }}</a>
+        {% endfor %}
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="card bg-base-100 border border-base-200 shadow">
+    <div class="card-body p-4 gap-3">
+      <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-2">
+        <div>
+          <label class="label py-1"><span class="label-text">Дата c</span></label>
+          <input class="input input-bordered input-sm w-full" type="date" x-model="filters.date_from">
+        </div>
+        <div>
+          <label class="label py-1"><span class="label-text">Дата по</span></label>
+          <input class="input input-bordered input-sm w-full" type="date" x-model="filters.date_to">
+        </div>
+        <div x-show="meta.pipelines && meta.pipelines.length">
+          <label class="label py-1"><span class="label-text">Воронка</span></label>
+          <select class="select select-bordered select-sm w-full" x-model="filters.pipeline_id" @change="onPipelineChanged()">
+            <option value="">Все</option>
+            <template x-for="p in (meta.pipelines || [])" :key="p.id">
+              <option :value="String(p.id)" x-text="p.name"></option>
+            </template>
+          </select>
+        </div>
+        <div x-show="showStageFilter()">
+          <label class="label py-1"><span class="label-text">Этап</span></label>
+          <select class="select select-bordered select-sm w-full" x-model="filters.stage_status_id">
+            <option value="">Все</option>
+            <template x-for="s in currentStatuses()" :key="s.id">
+              <option :value="String(s.id)" x-text="s.name"></option>
+            </template>
+          </select>
+        </div>
+        <div class="flex items-end">
+          <button class="btn btn-primary btn-sm w-full" @click="loadReport()" :disabled="loading">
+            <span x-show="!loading">Построить</span>
+            <span class="loading loading-spinner loading-sm" x-show="loading"></span>
+          </button>
+        </div>
+      </div>
+
+      <div class="flex flex-wrap gap-2 justify-end">
+        <button type="button" class="btn btn-outline btn-sm" @click="exportReport('pdf')" :disabled="loading">Экспорт PDF</button>
+        <button type="button" class="btn btn-outline btn-sm" @click="exportReport('xls')" :disabled="loading">Экспорт Excel</button>
+      </div>
+
+      <div class="flex flex-wrap gap-2" x-show="reportKey === 'rop_funnel'">
+        <button type="button" class="btn btn-sm btn-outline" @click="applyPreset('last_week')">Прошлая неделя</button>
+        <button type="button" class="btn btn-sm btn-outline" @click="applyPreset('last_month')">Прошлый месяц</button>
+      </div>
+
+      <div x-show="showManagerFilter()" class="rounded-box border border-base-200 p-3">
+        <div class="flex items-center justify-between mb-3">
+          <div class="font-semibold">Менеджеры (только активные)</div>
+          <div class="join">
+            <button type="button" class="btn btn-xs join-item" @click="selectAllManagers()">Все</button>
+            <button type="button" class="btn btn-xs join-item" @click="clearManagers()">Сброс</button>
+          </div>
+        </div>
+        <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-1.5">
+          <template x-for="m in (meta.managers || [])" :key="m.id">
+            <label class="label cursor-pointer justify-start gap-2 rounded-box border border-base-200 px-2 py-1.5">
+              <input type="checkbox" class="checkbox checkbox-primary checkbox-sm" :checked="filters.manager_ids.includes(String(m.id))" @change="toggleManager(String(m.id), $event.target.checked)">
+              <span class="label-text" x-text="m.name"></span>
+            </label>
+          </template>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card bg-base-100 border border-base-200 shadow">
+    <div class="card-body p-4">
+      <template x-if="error"><div role="alert" class="alert alert-error"><span x-text="error"></span></div></template>
+      <template x-if="!error">
+        <div class="space-y-4">
+          <template x-if="!hasResult">
+            <div role="alert" class="alert">
+              <span>Выберите параметры и нажмите «Построить».</span>
+            </div>
+          </template>
+          <div class="grid grid-cols-1 lg:grid-cols-2 gap-4" x-show="hasResult && chartCards.length">
+            <template x-for="(item, idx) in chartCards" :key="idx">
+              <div class="card bg-base-200 border border-base-300">
+                <div class="card-body p-4">
+                  <div class="text-sm font-medium opacity-80 mb-2" x-text="item.title || 'Диаграмма'"></div>
+                  <div class="h-64"><canvas :id="`reportChart${idx}`"></canvas></div>
+                </div>
+              </div>
+            </template>
+          </div>
+          <div class="overflow-x-auto" x-show="hasResult">
+            <table class="table table-xs md:table-sm table-zebra">
+              <thead><tr><template x-for="col in table.columns" :key="col"><th x-text="col"></th></template></tr></thead>
+              <tbody>
+                <template x-for="(row, idx) in table.rows" :key="idx">
+                  <tr><template x-for="cell in row" :key="String(cell)+idx"><td x-text="cell"></td></template></tr>
+                </template>
+              </tbody>
+            </table>
+          </div>
+          <details class="collapse collapse-arrow bg-base-200" x-show="hasResult">
+            <summary class="collapse-title text-sm font-medium">JSON ответа (debug)</summary>
+            <div class="collapse-content"><pre class="text-xs overflow-auto" x-text="rawPreview"></pre></div>
+          </details>
+        </div>
+      </template>
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+{{ report_meta_initial|json_script:"report-meta-initial" }}
+<script>
+function reportPage() {
+  const initialMetaNode = document.getElementById('report-meta-initial');
+  const initialMeta = initialMetaNode ? JSON.parse(initialMetaNode.textContent) : { pipelines: [], managers: [], filters: {} };
+  return {
+    reportKey: '{{ report.key }}',
+    filters: {
+      date_from: '{{ report_defaults.date_from }}',
+      date_to: '{{ report_defaults.date_to }}',
+      pipeline_id: '',
+      stage_status_id: '',
+      manager_ids: []
+    },
+    meta: { pipelines: [], managers: [], filters: {} },
+    loading: false,
+    error: '',
+    hasResult: false,
+    table: { columns: [], rows: [] },
+    rawPreview: '',
+    chartCards: [],
+    chartInstances: [],
+    init() {
+      this.applyMeta(initialMeta);
+      if (this.reportKey === 'rop_funnel' && !(this.meta.pipelines || []).length) {
+        this.loadMeta();
+      }
+    },
+    showManagerFilter() {
+      return this.reportKey === 'rop_funnel';
+    },
+    showStageFilter() {
+      return this.reportKey === 'rop_funnel';
+    },
+    applyMeta(metaPayload) {
+      this.meta = metaPayload || { pipelines: [], managers: [], filters: {} };
+      if (this.meta.filters) {
+        if (this.meta.filters.pipeline_id != null) this.filters.pipeline_id = String(this.meta.filters.pipeline_id);
+        if (this.meta.filters.stage_status_id != null) this.filters.stage_status_id = String(this.meta.filters.stage_status_id);
+      }
+      if (!Array.isArray(this.filters.manager_ids)) this.filters.manager_ids = [];
+    },
+    async loadMeta() {
+      const url = `{% url 'dashboard:report-meta-api' 'REPORT_KEY' %}`.replace('REPORT_KEY', this.reportKey);
+      const res = await fetch(url);
+      const payload = await res.json();
+      this.applyMeta((payload && payload.data) || { pipelines: [], managers: [], filters: {} });
+      this.filters.manager_ids = [];
+    },
+    async ensureMetaLoaded() {
+      if (this.reportKey === 'rop_funnel') {
+        if ((this.meta.pipelines || []).length) return;
+      } else if ((this.meta.pipelines || []).length || (this.meta.managers || []).length) {
+        return;
+      }
+      await this.loadMeta();
+    },
+    currentStatuses() {
+      const pipeline = (this.meta.pipelines || []).find((p) => String(p.id) === String(this.filters.pipeline_id));
+      return pipeline ? (pipeline.statuses || []) : [];
+    },
+    onPipelineChanged() {
+      if (this.showStageFilter() && !this.currentStatuses().find((s) => String(s.id) === String(this.filters.stage_status_id))) {
+        this.filters.stage_status_id = '';
+      }
+    },
+    toggleManager(id, checked) {
+      const set = new Set(this.filters.manager_ids);
+      if (checked) set.add(id); else set.delete(id);
+      this.filters.manager_ids = Array.from(set);
+    },
+    selectAllManagers() {
+      this.filters.manager_ids = (this.meta.managers || []).map((m) => String(m.id));
+    },
+    clearManagers() {
+      this.filters.manager_ids = [];
+    },
+    applyPreset(preset) {
+      const today = new Date();
+      const toIso = (d) => {
+        const year = d.getFullYear();
+        const month = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+      };
+
+      if (preset === 'last_week') {
+        const currentDay = today.getDay(); // 0=Sun..6=Sat
+        const mondayOffset = (currentDay + 6) % 7;
+        const thisWeekMonday = new Date(today);
+        thisWeekMonday.setDate(today.getDate() - mondayOffset);
+        const lastWeekMonday = new Date(thisWeekMonday);
+        lastWeekMonday.setDate(thisWeekMonday.getDate() - 7);
+        const lastWeekSunday = new Date(thisWeekMonday);
+        lastWeekSunday.setDate(thisWeekMonday.getDate() - 1);
+        this.filters.date_from = toIso(lastWeekMonday);
+        this.filters.date_to = toIso(lastWeekSunday);
+        return;
+      }
+
+      if (preset === 'last_month') {
+        const firstDayCurrentMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+        const firstDayLastMonth = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+        const lastDayLastMonth = new Date(firstDayCurrentMonth);
+        lastDayLastMonth.setDate(0);
+        this.filters.date_from = toIso(firstDayLastMonth);
+        this.filters.date_to = toIso(lastDayLastMonth);
+      }
+    },
+    queryString() {
+      const qs = new URLSearchParams();
+      if (this.filters.date_from) qs.set('date_from', this.filters.date_from);
+      if (this.filters.date_to) qs.set('date_to', this.filters.date_to);
+      if (this.filters.pipeline_id) qs.set('pipeline_id', this.filters.pipeline_id);
+      if (this.showStageFilter() && this.filters.stage_status_id) qs.set('stage_status_id', this.filters.stage_status_id);
+      if (this.showManagerFilter()) {
+        (this.filters.manager_ids || []).forEach((id) => qs.append('manager_ids', id));
+      }
+      return qs.toString();
+    },
+    async loadReport() {
+      this.loading = true;
+      this.error = '';
+      try {
+        await this.ensureMetaLoaded();
+        const url = `{% url 'dashboard:report-api' 'REPORT_KEY' %}`.replace('REPORT_KEY', this.reportKey) + '?' + this.queryString();
+        const res = await fetch(url);
+        const payload = await res.json();
+        if (!res.ok || payload.status !== 'ok') throw new Error(payload.detail || 'Ошибка построения отчета');
+        this.renderResult(payload.data || {});
+      } catch (e) {
+        this.error = e.message || String(e);
+        this.hasResult = false;
+        this.table = { columns: [], rows: [] };
+        this.rawPreview = '';
+        this.clearChartInstances();
+        this.chartCards = [];
+      } finally {
+        this.loading = false;
+      }
+    },
+    exportReport(format) {
+      const base = `{% url 'dashboard:report-export-api' 'REPORT_KEY' 'FORMAT' %}`
+        .replace('REPORT_KEY', this.reportKey)
+        .replace('FORMAT', format);
+      const qs = this.queryString();
+      window.location.href = qs ? `${base}?${qs}` : base;
+    },
+    renderResult(data) {
+      this.hasResult = true;
+      this.rawPreview = JSON.stringify(data, null, 2);
+      const adapted = this.adaptReport(data);
+      this.table = { columns: adapted.columns, rows: adapted.rows };
+      this.chartCards = adapted.charts || (adapted.chart ? [{ title: adapted.chartTitle || 'Диаграмма', chart: adapted.chart }] : []);
+      this.renderCharts();
+    },
+    adaptReport(data) {
+      if (Array.isArray(data.manager_rows)) {
+        const pieLabels = data.manager_rows.map((r) => r.manager_name);
+        const arrivedValues = data.manager_rows.map((r) => r.arrived || 0);
+        const realizedValues = data.manager_rows.map((r) => r.realized || 0);
+        const movedValues = data.manager_rows.map((r) => r.moved_to_stage || 0);
+        const hasRealized = realizedValues.some((v) => v > 0);
+        const charts = [
+          {
+            title: 'Распределение: Пришло',
+            chart: {
+              type: 'doughnut',
+              labels: pieLabels,
+              datasets: [{ label: 'Пришло', data: arrivedValues }],
+            },
+          },
+          {
+            title: 'Распределение: Перешло в этап',
+            chart: {
+              type: 'doughnut',
+              labels: pieLabels,
+              datasets: [{ label: 'Перешло в этап', data: movedValues }],
+            },
+          },
+        ];
+        if (hasRealized) {
+          charts.push({
+            title: 'Распределение: Реализовано',
+            chart: {
+              type: 'doughnut',
+              labels: pieLabels,
+              datasets: [{ label: 'Реализовано', data: realizedValues }],
+            },
+          });
+        }
+        return {
+          columns: ['Менеджер', 'Пришло', 'Перешло в этап', 'Реализовано'],
+          rows: data.manager_rows.map((r) => [r.manager_name, r.arrived, r.moved_to_stage, r.realized]),
+          charts,
+        };
+      }
+      if (Array.isArray(data.stage_rows)) {
+        return {
+          columns: ['Этап', 'Вошло', 'Реализовано', 'Конверсия %'],
+          rows: data.stage_rows.map((r) => [r.stage_name, r.entered, r.realized, r.conversion_percent]),
+          charts: [{
+            title: 'Этапы',
+            chart: {
+              type: 'bar',
+              labels: data.stage_rows.map((r) => r.stage_name),
+              datasets: [
+                { label: 'Вошло', data: data.stage_rows.map((r) => r.entered) },
+                { label: 'Реализовано', data: data.stage_rows.map((r) => r.realized) },
+              ]
+            }
+          }]
+        };
+      }
+      const entries = Object.entries(data || {});
+      return {
+        columns: ['Поле', 'Значение'],
+        rows: entries.map(([k, v]) => [k, typeof v === 'object' ? JSON.stringify(v) : v]),
+        charts: [{ title: 'Данные', chart: { type: 'bar', labels: [], datasets: [] } }]
+      };
+    },
+    clearChartInstances() {
+      (this.chartInstances || []).forEach((chart) => { if (chart) chart.destroy(); });
+      this.chartInstances = [];
+    },
+    renderCharts() {
+      this.$nextTick(() => {
+        this.clearChartInstances();
+        (this.chartCards || []).forEach((item, idx) => {
+          const canvas = document.getElementById(`reportChart${idx}`);
+          if (!canvas || !item || !item.chart) return;
+          const chartData = item.chart;
+          const chart = new Chart(canvas, {
+            type: chartData.type || 'bar',
+            data: { labels: chartData.labels || [], datasets: chartData.datasets || [] },
+            options: {
+              responsive: true,
+              maintainAspectRatio: false,
+              plugins: { legend: { position: 'bottom' } },
+              scales: (chartData.type === 'doughnut' || chartData.type === 'pie')
+                ? {}
+                : { y: { beginAtZero: true, ticks: { precision: 0 } } }
+            }
+          });
+          this.chartInstances.push(chart);
+        });
+      });
+    }
+  }
+}
+</script>
+{% endblock %}

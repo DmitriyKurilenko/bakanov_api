@@ -1,0 +1,28 @@
+{% extends 'base.html' %}
+{% block title %}Менеджеры{% endblock %}
+{% block content %}
+<div class="space-y-4">
+  <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
+    <div>
+      <h1 class="text-xl md:text-2xl font-bold">Менеджеры</h1>
+      <p class="opacity-70 text-sm">Синхронизация активных пользователей из amoCRM, графики работы и нерабочие дни</p>
+    </div>
+    <form method="post" action="{% url 'dashboard:managers-sync' %}" hx-post="{% url 'dashboard:managers-sync' %}" hx-target="#managers-list" hx-swap="outerHTML">
+      {% csrf_token %}
+      <button class="btn btn-primary btn-sm">Синхронизировать из amoCRM</button>
+    </form>
+  </div>
+  <div class="card bg-base-100 border border-base-200 shadow">
+    <div class="card-body p-4">
+      <h2 class="card-title text-base">Как работает участие менеджера в системе</h2>
+      <ul class="text-sm space-y-1 opacity-80">
+        <li>• В списке показываются только активные пользователи из amoCRM</li>
+        <li>• Переключатель «Активен» определяет участие в распределении сделок, отчетах и расчетах</li>
+        <li>• РОП и другие сотрудники можно исключить из распределения и отчетов, выключив «Активен»</li>
+        <li>• Учитываются график работы и нерабочие дни</li>
+      </ul>
+    </div>
+  </div>
+  {% include 'dashboard/partials/managers_list.html' %}
+</div>
+{% endblock %}

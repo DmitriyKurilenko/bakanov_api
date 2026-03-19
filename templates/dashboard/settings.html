@@ -1,0 +1,41 @@
+{% extends 'base.html' %}
+{% block title %}Настройки{% endblock %}
+{% block content %}
+<div class="space-y-4">
+  <div>
+    <h1 class="text-xl md:text-2xl font-bold">Настройки</h1>
+    <p class="opacity-70 text-sm">Статус интеграций и ссылки для настройки webhook в amoCRM</p>
+  </div>
+
+  <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+    <div class="card bg-base-100 border border-base-200 shadow">
+      <div class="card-body p-4">
+        <h2 class="card-title">Статус интеграций</h2>
+        <div class="space-y-2">
+          <div class="flex justify-between"><span>AMOCRM_BASE_URL</span><span class="badge {% if integrations_status.amocrm_base_url %}badge-success{% else %}badge-error{% endif %}">{% if integrations_status.amocrm_base_url %}OK{% else %}Нет{% endif %}</span></div>
+          <div class="flex justify-between"><span>AMOCRM_ACCESS_TOKEN</span><span class="badge {% if integrations_status.amocrm_token %}badge-success{% else %}badge-error{% endif %}">{% if integrations_status.amocrm_token %}OK{% else %}Нет{% endif %}</span></div>
+          <div class="flex justify-between"><span>TELEGRAM_BOT_TOKEN</span><span class="badge {% if integrations_status.telegram_token %}badge-success{% else %}badge-error{% endif %}">{% if integrations_status.telegram_token %}OK{% else %}Нет{% endif %}</span></div>
+          <div class="flex justify-between"><span>TELEGRAM_CHAT_ID</span><span class="badge {% if integrations_status.telegram_chat_id %}badge-success{% else %}badge-error{% endif %}">{% if integrations_status.telegram_chat_id %}OK{% else %}Нет{% endif %}</span></div>
+          <div class="flex justify-between"><span>Redis / Celery broker</span><span class="badge {% if integrations_status.redis_url %}badge-success{% else %}badge-error{% endif %}">{% if integrations_status.redis_url %}OK{% else %}Нет{% endif %}</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card bg-base-100 border border-base-200 shadow">
+      <div class="card-body p-4">
+        <h2 class="card-title">Webhook / API endpoints</h2>
+        <div class="space-y-3 text-sm">
+          <div>
+            <div class="font-semibold mb-1">Webhook новых сделок (amoCRM)</div>
+            <code class="block p-2 rounded-lg bg-base-200 break-all">{{ webhook_examples.ninja_webhook_url }}</code>
+          </div>
+          <div>
+            <div class="font-semibold mb-1">Ручная синхронизация менеджеров</div>
+            <code class="block p-2 rounded-lg bg-base-200 break-all">{{ webhook_examples.sync_managers_url }}</code>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,33 @@
+{% extends 'base.html' %}
+{% block title %}Отчеты{% endblock %}
+{% block content %}
+<div class="space-y-4">
+  <div class="flex flex-col md:flex-row md:items-end md:justify-between gap-2">
+    <div>
+      <h1 class="text-xl md:text-2xl font-bold">Отчеты</h1>
+      <p class="opacity-70 text-sm">Отдельный раздел с управленческими отчетами</p>
+    </div>
+    <a href="{% url 'dashboard:analytics' %}" class="btn btn-outline btn-sm">Вернуться в Аналитику</a>
+  </div>
+
+  {% if report_links %}
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-3">
+      {% for item in report_links %}
+        <div class="card bg-base-100 border border-base-200 shadow">
+          <div class="card-body p-4">
+            <h2 class="card-title">{{ item.title }}</h2>
+            <p class="opacity-70 text-sm">{{ item.description }}</p>
+            <div class="card-actions justify-end">
+              <a href="{{ item.url }}" class="btn btn-primary btn-sm">Открыть</a>
+            </div>
+          </div>
+        </div>
+      {% endfor %}
+    </div>
+  {% else %}
+    <div role="alert" class="alert alert-warning">
+      <span>Для вашей роли нет доступных отчетов.</span>
+    </div>
+  {% endif %}
+</div>
+{% endblock %}

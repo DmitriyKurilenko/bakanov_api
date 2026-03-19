@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <style>
+    body { font-family: Arial, sans-serif; font-size: 12px; color: #111; }
+    h1 { font-size: 18px; margin: 0 0 8px; }
+    .meta { margin: 0 0 12px; color: #555; }
+    .filters { margin: 0 0 14px; }
+    .filters table { width: 100%; border-collapse: collapse; }
+    .filters td { border: 1px solid #ddd; padding: 4px 6px; }
+    .charts { margin: 0 0 14px; }
+    .legend { margin: 0 0 10px; border: 1px solid #ddd; padding: 8px; }
+    .legend-grid { width: 100%; border-collapse: collapse; }
+    .legend-grid td { padding: 2px 8px 2px 0; vertical-align: top; }
+    .swatch { display: inline-block; width: 10px; height: 10px; border-radius: 2px; }
+    .chart-grid { width: 100%; border-collapse: separate; border-spacing: 6px; margin: 0 -6px; table-layout: fixed; }
+    .chart-grid td { width: 50%; vertical-align: top; }
+    .chart-box { border: 1px solid #ddd; padding: 8px; min-height: 210px; }
+    .report-table { width: 100%; border-collapse: collapse; }
+    .report-table th, .report-table td { border: 1px solid #ccc; padding: 6px; text-align: left; vertical-align: top; }
+    .report-table th { background: #f0f0f0; }
+  </style>
+</head>
+<body>
+  <h1>{{ report_title }}</h1>
+  <div class="meta">Сформировано: {{ generated_at|date:"d.m.Y H:i" }}</div>
+
+  {% if header_rows %}
+  <div class="filters">
+    <table>
+      <tbody>
+      {% for row in header_rows %}
+        <tr><td>{{ row.label }} </td><td>{{ row.value }} </td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+
+  {% if charts %}
+  <div class="charts">
+    {% if chart_legend %}
+    <div class="legend">
+      <table class="legend-grid">
+        <tbody>
+          {% for item in chart_legend %}
+            {% if forloop.counter0|divisibleby:3 %}<tr>{% endif %}
+            <td style="width:16px;"><span class="swatch" style="background: {{ item.color }}"></span></td>
+            <td>{{ item.name }}</td>
+            {% if forloop.counter|divisibleby:3 or forloop.last %}</tr>{% endif %}
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% endif %}
+    <table class="chart-grid">
+      <tbody>
+      {% for row in chart_grid_rows %}
+        <tr>
+          {% for chart in row %}
+            <td>{% if chart %}<div class="chart-box">{{ chart.svg|safe }}</div>{% endif %}</td>
+          {% endfor %}
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+
+  <table class="report-table">
+    <thead>
+      <tr>
+        {% for col in table.columns %}<th>{{ col }}</th>{% endfor %}
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in table.rows %}
+        <tr>{% for cell in row %}<td>{{ cell }}</td>{% endfor %}</tr>
+      {% empty %}
+        <tr><td colspan="{{ table.columns|length }}">Нет данных</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</body>
+</html>

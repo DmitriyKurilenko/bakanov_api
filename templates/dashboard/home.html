@@ -1,0 +1,32 @@
+{% extends 'base.html' %}
+{% block title %}Главная{% endblock %}
+{% block content %}
+<div class="space-y-4">
+  <div class="flex flex-col md:flex-row md:items-end md:justify-between gap-2">
+    <div>
+      <h1 class="text-xl md:text-2xl font-bold">Дашборд</h1>
+      <p class="opacity-70 text-sm">Раздел в доработке. Временная версия без аналитических показателей.</p>
+    </div>
+    <div class="text-xs opacity-70">{{ request.user.get_role_display }}</div>
+  </div>
+
+  <div class="card bg-base-100 shadow border border-base-200">
+    <div class="card-body p-4">
+      <h2 class="card-title">Быстрые действия</h2>
+      <p class="text-sm opacity-70">Аналитические блоки на главной временно отключены до корректной настройки расчетов.</p>
+      <div class="flex flex-wrap gap-2">
+        <a class="btn btn-primary btn-sm" href="{% url 'dashboard:managers' %}">Менеджеры</a>
+        <a class="btn btn-outline btn-sm" href="{% url 'dashboard:analytics' %}">Аналитика</a>
+        <a class="btn btn-outline btn-sm" href="{% url 'dashboard:reports-home' %}">Отчеты</a>
+        <a class="btn btn-outline btn-sm" href="{% url 'dashboard:settings' %}">Настройки</a>
+        {% if is_head_or_admin %}
+        <form method="post" action="{% url 'dashboard:reports-meta-sync' %}" class="inline">
+          {% csrf_token %}
+          <button class="btn btn-outline btn-sm" type="submit">Синхронизировать с Amo</button>
+        </form>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,279 @@
+{% extends 'base.html' %}
+{% block title %}Текущие отчеты{% endblock %}
+{% block content %}
+<div class="space-y-4" x-data="reportsPage()" x-init="init()">
+  <div>
+    <h1 class="text-xl md:text-2xl font-bold">Текущие отчеты</h1>
+    <p class="opacity-70 text-sm">Отчеты из существующего каталога</p>
+  </div>
+
+  {% if available_reports %}
+  <div class="card bg-base-100 border border-base-200 shadow">
+    <div class="card-body p-4 gap-3">
+      <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-2">
+        <div class="xl:col-span-2">
+          <label class="label py-1"><span class="label-text">Отчет</span></label>
+          <select class="select select-bordered select-sm w-full" x-model="reportKey" @change="onReportChanged()">
+            {% for report in available_reports %}
+              <option value="{{ report.key }}" {% if selected_report == report.key %}selected{% endif %}>{{ report.title }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label class="label py-1"><span class="label-text">Дата c</span></label>
+          <input class="input input-bordered input-sm w-full" type="date" x-model="filters.date_from">
+        </div>
+        <div>
+          <label class="label py-1"><span class="label-text">Дата по</span></label>
+          <input class="input input-bordered input-sm w-full" type="date" x-model="filters.date_to">
+        </div>
+        <div class="flex items-end">
+          <button class="btn btn-primary btn-sm w-full" @click="loadReport()" :disabled="loading">Построить</button>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-2" x-show="meta.managers && meta.managers.length">
+        <div>
+          <label class="label py-1"><span class="label-text">Менеджеры (мультивыбор)</span></label>
+          <select class="select select-bordered select-sm w-full h-36" multiple @change="syncManagerIds($event)">
+            <template x-for="m in (meta.managers || [])" :key="m.id">
+              <option :value="m.id" x-text="m.name"></option>
+            </template>
+          </select>
+        </div>
+        <div class="space-y-2">
+          <template x-if="meta.pipelines && meta.pipelines.length">
+            <div>
+              <label class="label py-1"><span class="label-text">Воронка</span></label>
+              <select class="select select-bordered select-sm w-full" x-model="filters.pipeline_id" @change="onPipelineChanged()">
+                <option value="">Все</option>
+                <template x-for="p in (meta.pipelines || [])" :key="p.id">
+                  <option :value="String(p.id)" x-text="p.name"></option>
+                </template>
+              </select>
+            </div>
+          </template>
+          <template x-if="reportKey === 'rop_funnel'">
+            <div>
+              <label class="label py-1"><span class="label-text">Этап</span></label>
+              <select class="select select-bordered select-sm w-full" x-model="filters.stage_status_id">
+                <option value="">Все</option>
+                <template x-for="s in currentStatuses()" :key="s.id">
+                  <option :value="String(s.id)" x-text="s.name"></option>
+                </template>
+              </select>
+            </div>
+          </template>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card bg-base-100 border border-base-200 shadow">
+    <div class="card-body p-4">
+      <div class="flex items-center justify-between">
+        <h2 class="card-title">Результат</h2>
+        <span class="loading loading-spinner" x-show="loading"></span>
+      </div>
+      <template x-if="error"><div class="alert alert-error"><span x-text="error"></span></div></template>
+      <template x-if="!error && !loading">
+        <div class="space-y-3">
+          <template x-if="!hasResult">
+            <div class="alert"><span>Выберите фильтры и нажмите «Построить».</span></div>
+          </template>
+          <div class="h-64" x-show="hasResult"><canvas id="reportChart"></canvas></div>
+          <div class="overflow-x-auto" x-show="hasResult">
+            <table class="table table-xs md:table-sm">
+              <thead>
+                <tr>
+                  <template x-for="col in table.columns" :key="col"><th x-text="col"></th></template>
+                </tr>
+              </thead>
+              <tbody>
+                <template x-for="(row, idx) in table.rows" :key="idx">
+                  <tr>
+                    <template x-for="cell in row" :key="String(cell)+idx"><td x-text="cell"></td></template>
+                  </tr>
+                </template>
+              </tbody>
+            </table>
+          </div>
+          <pre class="text-xs bg-base-200 p-2 rounded-lg overflow-auto" x-show="hasResult" x-text="rawPreview"></pre>
+        </div>
+      </template>
+    </div>
+  </div>
+  {% else %}
+  <div class="alert alert-warning"><span>Для вашей роли нет доступных текущих отчетов.</span></div>
+  {% endif %}
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+function reportsPage() {
+  return {
+    reportKey: '{{ selected_report|default:"" }}',
+    filters: {
+      date_from: '{{ report_defaults.date_from }}',
+      date_to: '{{ report_defaults.date_to }}',
+      pipeline_id: '',
+      stage_status_id: '',
+      manager_ids: []
+    },
+    meta: { pipelines: [], managers: [], filters: {} },
+    loading: false,
+    error: '',
+    hasResult: false,
+    chart: null,
+    rawPreview: '',
+    table: { columns: [], rows: [] },
+    init() {
+      if (this.reportKey) {
+        this.onReportChanged();
+      }
+    },
+    async onReportChanged() {
+      this.filters.pipeline_id = '';
+      this.filters.stage_status_id = '';
+      this.filters.manager_ids = [];
+      this.hasResult = false;
+      this.table = { columns: [], rows: [] };
+      this.rawPreview = '';
+      if (this.chart) { this.chart.destroy(); this.chart = null; }
+      await this.loadMeta();
+    },
+    async loadMeta() {
+      if (!this.reportKey) return;
+      const cacheKey = `report-meta:${this.reportKey}:v1`;
+      const cachedRaw = localStorage.getItem(cacheKey);
+      if (cachedRaw) {
+        try {
+          this.meta = JSON.parse(cachedRaw) || { pipelines: [], managers: [], filters: {} };
+          if (this.reportKey === 'rop_funnel' && !(this.meta.pipelines || []).length) {
+            this.meta = { pipelines: [], managers: [], filters: {} };
+            localStorage.removeItem(cacheKey);
+          }
+        } catch (_) {
+          localStorage.removeItem(cacheKey);
+        }
+      }
+      if (!(this.meta.pipelines || []).length && !(this.meta.managers || []).length) {
+        const res = await fetch(`{% url 'dashboard:report-meta-api' 'REPLACE' %}`.replace('REPLACE', this.reportKey));
+        const payload = await res.json();
+        this.meta = (payload && payload.data) || { pipelines: [], managers: [], filters: {} };
+        localStorage.setItem(cacheKey, JSON.stringify(this.meta));
+      }
+      if (this.meta.filters) {
+        if (this.meta.filters.pipeline_id != null) this.filters.pipeline_id = String(this.meta.filters.pipeline_id);
+        if (this.meta.filters.stage_status_id != null) this.filters.stage_status_id = String(this.meta.filters.stage_status_id);
+      }
+    },
+    query() {
+      const qs = new URLSearchParams();
+      if (this.filters.date_from) qs.set('date_from', this.filters.date_from);
+      if (this.filters.date_to) qs.set('date_to', this.filters.date_to);
+      if (this.filters.pipeline_id) qs.set('pipeline_id', this.filters.pipeline_id);
+      if (this.filters.stage_status_id) qs.set('stage_status_id', this.filters.stage_status_id);
+      (this.filters.manager_ids || []).forEach((id) => qs.append('manager_ids', id));
+      return qs.toString();
+    },
+    async loadReport() {
+      if (!this.reportKey) return;
+      this.loading = true;
+      this.error = '';
+      try {
+        const url = `{% url 'dashboard:report-api' 'REPLACE' %}`.replace('REPLACE', this.reportKey) + '?' + this.query();
+        const res = await fetch(url);
+        const payload = await res.json();
+        if (!res.ok || payload.status !== 'ok') {
+          throw new Error(payload.detail || 'Ошибка построения отчета');
+        }
+        this.renderReport(payload.data || {});
+      } catch (e) {
+        this.error = e.message || String(e);
+        this.hasResult = false;
+        this.table = { columns: [], rows: [] };
+        this.rawPreview = '';
+        if (this.chart) { this.chart.destroy(); this.chart = null; }
+      } finally {
+        this.loading = false;
+      }
+    },
+    syncManagerIds(event) {
+      this.filters.manager_ids = Array.from(event.target.selectedOptions).map(o => o.value);
+    },
+    onPipelineChanged() {
+      if (this.reportKey === 'rop_funnel' && !this.currentStatuses().find(s => String(s.id) === String(this.filters.stage_status_id))) {
+        this.filters.stage_status_id = '';
+      }
+    },
+    currentStatuses() {
+      const p = (this.meta.pipelines || []).find(x => String(x.id) === String(this.filters.pipeline_id));
+      return p ? (p.statuses || []) : [];
+    },
+    renderReport(data) {
+      this.hasResult = true;
+      this.rawPreview = JSON.stringify(data, null, 2);
+      const { columns, rows, chart } = this.adaptReport(data);
+      this.table = { columns, rows };
+      this.renderChart(chart);
+    },
+    adaptReport(data) {
+      if (Array.isArray(data.manager_rows)) {
+        const realizedValues = data.manager_rows.map(r => r.realized || 0);
+        const movedValues = data.manager_rows.map(r => r.moved_to_stage || 0);
+        const fallbackValues = realizedValues.some(v => v > 0) ? realizedValues : movedValues;
+        return {
+          columns: ['Менеджер', 'Пришло', 'Перешло в этап', 'Реализовано'],
+          rows: data.manager_rows.map(r => [r.manager_name, r.arrived, r.moved_to_stage, r.realized]),
+          chart: {
+            type: 'doughnut',
+            labels: data.manager_rows.map(r => r.manager_name),
+            datasets: [
+              { label: realizedValues.some(v => v > 0) ? 'Реализовано' : 'Перешло в этап', data: fallbackValues },
+            ]
+          }
+        };
+      }
+      if (Array.isArray(data.stage_rows)) {
+        return {
+          columns: ['Этап', 'Вошло', 'Реализовано', 'Конверсия %'],
+          rows: data.stage_rows.map(r => [r.stage_name, r.entered, r.realized, r.conversion_percent]),
+          chart: {
+            type: 'bar',
+            labels: data.stage_rows.map(r => r.stage_name),
+            datasets: [
+              { label: 'Вошло', data: data.stage_rows.map(r => r.entered) },
+              { label: 'Реализовано', data: data.stage_rows.map(r => r.realized) },
+            ]
+          }
+        };
+      }
+      const entries = Object.entries(data || {});
+      return {
+        columns: ['Поле', 'Значение'],
+        rows: entries.map(([k, v]) => [k, typeof v === 'object' ? JSON.stringify(v) : v]),
+        chart: { type: 'bar', labels: [], datasets: [] }
+      };
+    },
+    renderChart(chartData) {
+      const canvas = document.getElementById('reportChart');
+      if (!canvas) return;
+      if (this.chart) this.chart.destroy();
+      this.chart = new Chart(canvas, {
+        type: chartData.type || 'bar',
+        data: { labels: chartData.labels || [], datasets: chartData.datasets || [] },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { position: 'bottom' } },
+          scales: (chartData.type === 'doughnut' || chartData.type === 'pie')
+            ? {}
+            : { y: { beginAtZero: true, ticks: { precision: 0 } } }
+        }
+      });
+    }
+  }
+}
+</script>
+{% endblock %}

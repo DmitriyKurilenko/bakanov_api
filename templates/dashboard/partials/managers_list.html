@@ -1,0 +1,89 @@
+<div id="managers-list" class="space-y-3">
+  {% if manager_cards %}
+    {% for card in manager_cards %}
+      <div class="card bg-base-100 border border-base-200 shadow">
+        <div class="card-body gap-2 p-3">
+          <form class="space-y-2"
+                  method="post"
+                  action="{% url 'dashboard:manager-update' card.manager.id %}"
+                  hx-post="{% url 'dashboard:manager-update' card.manager.id %}"
+                  hx-target="#managers-list"
+                  hx-swap="outerHTML">
+              {% csrf_token %}
+              <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
+                <div>
+                  <h2 class="card-title text-base">{{ card.manager.name }}</h2>
+                </div>
+                <label class="label cursor-pointer justify-start md:justify-end gap-2 rounded-box border border-base-200 px-2 py-1.5">
+                  <input type="checkbox" class="toggle toggle-primary toggle-sm" name="is_active" {% if card.manager.is_active %}checked{% endif %}>
+                  <span class="label-text text-sm">Активен</span>
+                </label>
+              </div>
+
+              <div class="rounded-box border border-base-200 bg-base-50 p-2.5 space-y-2">
+                <div>
+                  <div class="text-sm font-semibold mb-1.5">График работы</div>
+                  <div class="flex flex-wrap gap-1">
+                  {% for row in card.schedule_rows %}
+                    <label class="label cursor-pointer gap-1 py-0 pr-1">
+                      <input type="checkbox" class="checkbox checkbox-sm" name="workdays" value="{{ row.weekday }}" {% if row.is_working %}checked{% endif %}>
+                      <span class="label-text text-xs">{{ row.label }}</span>
+                    </label>
+                  {% endfor %}
+                  </div>
+                </div>
+
+                <div class="flex justify-end">
+                  <button type="submit" class="btn btn-primary btn-sm">Сохранить</button>
+                </div>
+              </div>
+          </form>
+
+          <div class="rounded-box border border-base-200 bg-base-50 p-2.5">
+            <div class="text-sm font-semibold mb-1.5">Нерабочие дни ({{ card.days_off|length }})</div>
+              <form class="grid grid-cols-1 md:grid-cols-3 gap-2 mb-3"
+                    method="post"
+                    action="{% url 'dashboard:manager-dayoff-add' card.manager.id %}"
+                    hx-post="{% url 'dashboard:manager-dayoff-add' card.manager.id %}"
+                    hx-target="#managers-list"
+                    hx-swap="outerHTML">
+                {% csrf_token %}
+                <input type="date" name="day_off_date" class="input input-bordered input-sm" required>
+                <input type="text" name="day_off_reason" class="input input-bordered input-sm" placeholder="Причина (необязательно)">
+                <button class="btn btn-outline btn-sm">Добавить</button>
+              </form>
+              <div class="space-y-1.5">
+                {% if card.days_off %}
+                  {% for day_off in card.days_off %}
+                    <div class="flex items-center justify-between gap-2 rounded-lg border border-base-200 px-2 py-1.5">
+                      <div class="text-sm">
+                        <div class="font-medium">{{ day_off.date|date:'d.m.Y' }}</div>
+                        <div class="opacity-60">{{ day_off.reason|default:'Без причины' }}</div>
+                      </div>
+                      <form method="post"
+                            action="{% url 'dashboard:manager-dayoff-delete' card.manager.id day_off.id %}"
+                            hx-post="{% url 'dashboard:manager-dayoff-delete' card.manager.id day_off.id %}"
+                            hx-target="#managers-list"
+                            hx-swap="outerHTML">
+                        {% csrf_token %}
+                        <button class="btn btn-xs btn-error btn-outline">Удалить</button>
+                      </form>
+                    </div>
+                  {% endfor %}
+                {% else %}
+                  <div class="text-sm opacity-60">Список пуст</div>
+                {% endif %}
+              </div>
+          </div>
+        </div>
+      </div>
+    {% endfor %}
+  {% else %}
+    <div class="card bg-base-100 border border-base-200 shadow">
+      <div class="card-body">
+        <h2 class="card-title">Менеджеры не найдены</h2>
+        <p class="opacity-70">Нажмите «Синхронизировать из amoCRM», чтобы загрузить активных пользователей.</p>
+      </div>
+    </div>
+  {% endif %}
+</div>

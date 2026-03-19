@@ -1,0 +1,29 @@
+{% extends 'base.html' %}
+{% block title %}Вход{% endblock %}
+{% block auth_content %}
+<div class="min-h-screen grid place-items-center p-4">
+  <div class="w-full max-w-md">
+    <div class="card bg-base-100 shadow-xl border border-base-200">
+      <div class="card-body p-4">
+        <h1 class="card-title text-xl">Вход в систему</h1>
+        <p class="text-sm opacity-70 mb-2">Личный кабинет менеджеров и аналитики</p>
+        <form method="post" class="space-y-3">
+          {% csrf_token %}
+          <div>
+            <label class="label py-1"><span class="label-text">Логин</span></label>
+            <input type="text" name="username" class="input input-bordered input-sm w-full" autofocus required>
+          </div>
+          <div>
+            <label class="label py-1"><span class="label-text">Пароль</span></label>
+            <input type="password" name="password" class="input input-bordered input-sm w-full" required>
+          </div>
+          {% if form.errors %}
+            <div class="alert alert-error text-sm"><span>Неверный логин или пароль.</span></div>
+          {% endif %}
+          <button type="submit" class="btn btn-primary btn-sm w-full">Войти</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

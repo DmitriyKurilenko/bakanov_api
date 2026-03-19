@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <title>Дополнительное соглашение</title>
+  <style>
+    @page { size: 210mm 297mm; margin: 20mm 20mm 21mm 20mm; }
+    body {
+      margin: 0;
+      font-family: "Times New Roman", Times, serif;
+      font-size: 10pt;
+      line-height: 1.35;
+      color: #000;
+    }
+    h1, h2, p { margin: 0 0 6px; }
+    h1 {
+      text-align: center;
+      font-size: 12pt;
+      font-weight: 700;
+      margin-bottom: 4px;
+    }
+    h2 {
+      text-align: center;
+      font-size: 11pt;
+      font-weight: 700;
+      margin-bottom: 10px;
+    }
+    p { text-align: justify; }
+    .left { text-align: left; }
+    .right { text-align: right; }
+    .center { text-align: center; }
+    .preline { white-space: pre-line; }
+    .spacer-sm { margin-bottom: 10px; }
+    .spacer-md { margin-bottom: 16px; }
+
+    .header-row {
+      width: 100%;
+      margin-bottom: 10px;
+      border-collapse: collapse;
+    }
+    .header-row td {
+      border: none;
+      width: 50%;
+      padding: 0;
+      vertical-align: top;
+      font-size: 10pt;
+    }
+
+    .payments-box {
+      border: 1px solid #000;
+      padding: 8px 10px;
+      min-height: 34mm;
+      margin: 8px 0 12px;
+    }
+
+    .sign-row {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 10px;
+    }
+    .sign-row td {
+      width: 50%;
+      border: none;
+      padding: 0 12px 0 0;
+      vertical-align: top;
+    }
+
+    .signature-inline { display: inline-block; }
+    .sign-line-wrap {
+      display: inline-block;
+      width: 220px;
+      height: 18px;
+      border-bottom: 1px solid #000;
+      vertical-align: bottom;
+      text-align: center;
+    }
+    .signature-img {
+      display: block;
+      max-width: 115px;
+      height: auto;
+      margin: 0 auto;
+      position: relative;
+      top: -10px;
+    }
+
+    .section-title {
+      font-weight: 700;
+      margin-top: 10px;
+      margin-bottom: 6px;
+    }
+  </style>
+</head>
+<body>
+  <h1>Дополнительное соглашение № 1</h1>
+  <h2>к Агентскому договору № {{ number }} от {{ contract_date }}</h2>
+
+  <table class="header-row">
+    <tr>
+      <td class="left">г. Санкт-Петербург</td>
+      <td class="right">{{ contract_date }} г.</td>
+    </tr>
+  </table>
+
+  <p>
+    Индивидуальный предприниматель Баканов Юрий Александрович (ИП Баканов Ю.А.), действующий на основании
+    Записи в Едином государственном реестре индивидуальных предпринимателей от 28.10.2020
+    (ОГРНИП 320237500309862), именуемый в дальнейшем «Исполнитель», с одной стороны, и
+    {{ client_fullname }}, именуемый(ая) в дальнейшем «Клиент», с другой стороны, совместно именуемые «Стороны»,
+    заключили настоящее Дополнительное соглашение № 1 (далее — «Соглашение») к Агентскому договору № {{ number }}
+    от {{ contract_date }} (далее — «Договор») о нижеследующем.
+  </p>
+
+  <p class="section-title">1. Изменение порядка оплаты</p>
+  <p>Стороны пришли к соглашению о том, что оплата услуг по Договору производится по следующим реквизитам:</p>
+  <div class="payments-box preline">{{ extra_payments|default:"Реквизиты не заполнены в поле сделки (field_id=1074173)." }}</div>
+
+  <p class="section-title">2. Прочие условия</p>
+  <p>Остальные условия Договора остаются без изменений и Стороны подтверждают их обязательность.</p>
+  <p>Соглашение составлено в двух экземплярах, имеющих равную юридическую силу, по одному экземпляру для каждой из Сторон.</p>
+  <p>Соглашение вступает в силу с даты подписания Сторонами и является неотъемлемой частью Договора.</p>
+
+  <table class="sign-row">
+    <tr>
+      <td>
+        <p class="left">Исполнитель:</p>
+        <p class="left">ИП Баканов Ю.А.</p>
+        <p class="left">Дата: {{ contract_date }}</p>
+        <p class="left">
+          <span class="signature-inline">Подпись:
+            <span class="sign-line-wrap">
+              <img class="signature-img" src="templates/contracts/assets/signature.png" alt="Подпись Исполнителя">
+            </span>
+          </span>
+        </p>
+      </td>
+      <td>
+        <p class="left">Клиент:</p>
+        <p class="left">{{ client_fullname }}</p>
+        <p class="left">Дата: {{ contract_date }}</p>
+        <p class="left">Подпись: <span class="sign-line-wrap"></span></p>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>

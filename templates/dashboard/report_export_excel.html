@@ -1,0 +1,31 @@
+<html>
+<head>
+  <meta charset="utf-8">
+</head>
+<body>
+  <table>
+    <tr><td colspan="{{ table.columns|length }}"><b>{{ report_title }}</b></td></tr>
+    <tr><td colspan="{{ table.columns|length }}">Сформировано: {{ generated_at|date:"d.m.Y H:i" }}</td></tr>
+  </table>
+  {% if filters %}
+  <table border="1">
+    {% for key, value in filters.items %}
+      <tr><td>{{ key }}</td><td>{{ value }}</td></tr>
+    {% endfor %}
+  </table>
+  <br>
+  {% endif %}
+  <table border="1">
+    <thead>
+      <tr>{% for col in table.columns %}<th>{{ col }}</th>{% endfor %}</tr>
+    </thead>
+    <tbody>
+      {% for row in table.rows %}
+        <tr>{% for cell in row %}<td>{{ cell }}</td>{% endfor %}</tr>
+      {% empty %}
+        <tr><td colspan="{{ table.columns|length }}">Нет данных</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</body>
+</html>

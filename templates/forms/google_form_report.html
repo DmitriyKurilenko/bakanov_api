@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <style>
+    @page { size: A4; margin: 16mm; }
+    body { font-family: "Times New Roman", Times, serif; font-size: 11pt; line-height: 1.35; color: #000; }
+    h1, h2, p { margin: 0 0 6px; }
+    h1 { text-align: center; font-size: 14pt; margin-bottom: 2px; }
+    h2 { text-align: center; font-size: 11pt; font-weight: 400; margin-bottom: 12px; }
+    .meta { margin-bottom: 12px; }
+    .meta p { text-align: left; }
+    .section-title { font-weight: 700; margin: 10px 0 6px; }
+    .box { border: 1px solid #000; padding: 8px 10px; }
+    .answers-table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+    .answers-table th, .answers-table td { border: 1px solid #000; padding: 5px 6px; vertical-align: top; text-align: left; }
+    .answers-table th { font-weight: 700; }
+    .muted { color: #333; }
+    .list-item { margin: 0 0 3px; }
+  </style>
+</head>
+<body>
+  <h1>{{ title }}</h1>
+  <h2>{{ subtitle }}</h2>
+
+  <div class="meta">
+    <p><strong>{{ labels.lead }}:</strong> {{ lead_id }}</p>
+    <p><strong>{{ labels.organizer }}:</strong> {{ organizer_name|default:"-" }}</p>
+    <p><strong>{{ labels.clients }}:</strong> {{ clients|default:"-" }}</p>
+    <p><strong>{{ labels.trip_period }}:</strong>
+      {% if trip_start or trip_end %}
+        {{ labels.from }} {{ trip_start|default:"-" }} {{ labels.to }} {{ trip_end|default:"-" }}
+      {% else %}
+        -
+      {% endif %}
+    </p>
+    <p><strong>Generated:</strong> {{ generated_at }}</p>
+  </div>
+
+  <p class="section-title">{{ labels.answers }}</p>
+  <table class="answers-table">
+    <colgroup>
+      <col style="width: 38%;">
+      <col style="width: 62%;">
+    </colgroup>
+    <thead>
+      <tr>
+        <th>{% if language == 'en' %}Question{% else %}Вопрос{% endif %}</th>
+        <th>{% if language == 'en' %}Answer{% else %}Ответ{% endif %}</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in answer_rows %}
+      <tr>
+        <td>{{ row.question }}</td>
+        <td>
+          {% if row.is_list %}
+            {% for line in row.items %}
+              <div class="list-item">- {{ line }}</div>
+            {% endfor %}
+          {% else %}
+            {{ row.value }}
+          {% endif %}
+        </td>
+      </tr>
+      {% empty %}
+      <tr>
+        <td colspan="2" class="muted">{% if language == 'en' %}No answers in payload{% else %}Нет ответов в payload{% endif %}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</body>
+</html>
