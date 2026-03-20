@@ -6,8 +6,12 @@ from apps.integrations.services.metrika_service import YandexMetricaService
 
 
 class YandexMetricaServiceTests(SimpleTestCase):
+    @patch("apps.integrations.services.metrika_service.requests.get")
     @patch("apps.integrations.services.metrika_service.requests.post")
-    def test_upload_spam_client_ids_sends_csv_file(self, post_mock):
+    def test_upload_spam_client_ids_sends_csv_file(self, post_mock, get_mock):
+        get_mock.return_value.status_code = 200
+        get_mock.return_value.content = b'{"goals":[]}'
+        get_mock.return_value.json.return_value = {"goals": []}
         post_mock.return_value.status_code = 200
         post_mock.return_value.text = '{"uploading":{"id":101,"status":"UPLOADED","source_quantity":2,"linked_quantity":1}}'
         post_mock.return_value.json.return_value = {
@@ -47,8 +51,52 @@ class YandexMetricaServiceTests(SimpleTestCase):
         self.assertIn("ClientId,Target,DateTime", csv_text)
         self.assertIn("1772125921407675467,spam_lead,1700000000", csv_text)
 
+    @patch("apps.integrations.services.metrika_service.requests.get")
     @patch("apps.integrations.services.metrika_service.requests.post")
-    def test_upload_spam_client_ids_raises_when_uploading_missing(self, post_mock):
+    def test_upload_resolves_numeric_goal_id_to_action_identifier(self, post_mock, get_mock):
+        get_mock.return_value.status_code = 200
+        get_mock.return_value.content = b'{"goals":[{"id":535794961,"type":"action","conditions":[{"type":"exact","url":"spam_lead"}]}]}'
+        get_mock.return_value.json.return_value = {
+            "goals": [
+                {
+                    "id": 535794961,
+                    "type": "action",
+                    "conditions": [{"type": "exact", "url": "spam_lead"}],
+                }
+            ]
+        }
+        post_mock.return_value.status_code = 200
+        post_mock.return_value.text = '{"uploading":{"id":201,"status":"UPLOADED","source_quantity":1,"linked_quantity":1}}'
+        post_mock.return_value.json.return_value = {
+            "uploading": {
+                "id": 201,
+                "status": "UPLOADED",
+                "source_quantity": 1,
+                "linked_quantity": 1,
+            }
+        }
+
+        service = YandexMetricaService(
+            token="token",
+            counter_id=105288315,
+            spam_goal_id="535794961",
+            upload_type="BASIC",
+        )
+        service.upload_spam_client_ids(
+            client_ids=["1738823498979764492"],
+            conversion_timestamp=1700000000,
+        )
+
+        args, kwargs = post_mock.call_args
+        csv_text = kwargs["files"]["file"][1].decode("utf-8")
+        self.assertIn("1738823498979764492,spam_lead,1700000000", csv_text)
+
+    @patch("apps.integrations.services.metrika_service.requests.get")
+    @patch("apps.integrations.services.metrika_service.requests.post")
+    def test_upload_spam_client_ids_raises_when_uploading_missing(self, post_mock, get_mock):
+        get_mock.return_value.status_code = 200
+        get_mock.return_value.content = b'{"goals":[]}'
+        get_mock.return_value.json.return_value = {"goals": []}
         post_mock.return_value.status_code = 200
         post_mock.return_value.text = "{}"
         post_mock.return_value.json.return_value = {}

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import time
 
 from django.conf import settings
 
@@ -32,11 +33,13 @@ def _normalize_client_ids(raw_values: list[object]) -> list[str]:
     for raw in raw_values:
         if raw is None:
             continue
-        cleaned = "".join(ch for ch in str(raw) if ch.isdigit())
-        if not cleaned or cleaned in seen:
+        value = str(raw).strip()
+        # ClientId for offline_conversions must be passed as-is, numeric only.
+        # Do not "salvage" mixed strings by removing non-digits, it produces invalid IDs.
+        if not value.isdigit() or value in seen:
             continue
-        seen.add(cleaned)
-        result.append(cleaned)
+        seen.add(value)
+        result.append(value)
     return result
 
 
@@ -79,8 +82,10 @@ class AmoCrmSpamLeadSyncService:
                 sources=sources,
             )
 
+        conversion_timestamp = self._resolve_conversion_timestamp(lead)
         upload_result = self.metrika.upload_spam_client_ids(
             client_ids=client_ids,
+            conversion_timestamp=conversion_timestamp,
             comment=f"amocrm spam lead webhook, lead_id={lead_id}",
         )
         return AmoCrmSpamLeadSyncResult(
@@ -90,6 +95,25 @@ class AmoCrmSpamLeadSyncService:
             uploading=upload_result.uploading,
             sources=sources,
         )
+
+    @staticmethod
+    def _resolve_conversion_timestamp(lead: dict) -> int:
+        now_ts = int(time.time())
+
+        # For matching by ClientId, using lead creation time is usually better than "now"
+        # because spam marking can happen much later than the original visit.
+        raw_created = lead.get("created_at")
+        if isinstance(raw_created, int):
+            created_ts = raw_created
+        else:
+            created_raw_str = str(raw_created or "").strip()
+            created_ts = int(created_raw_str) if created_raw_str.isdigit() else 0
+
+        if created_ts <= 0:
+            return now_ts
+        if created_ts > now_ts:
+            return now_ts
+        return created_ts
 
     def _extract_client_ids(self, lead: dict) -> tuple[list[str], list[str]]:
         field_ids = _parse_int_csv(getattr(settings, "AMOCRM_SPAM_CLIENT_ID_FIELD_IDS", ""))

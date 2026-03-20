@@ -171,14 +171,13 @@ def _normalize_yandex_ids(values: list[str]) -> list[str]:
         value = str(raw).strip()
         if not value:
             continue
-        # Keep only digit IDs to avoid invalid filter values.
-        cleaned = "".join(ch for ch in value if ch.isdigit())
-        if not cleaned:
+        # ClientId values must be numeric; do not mutate mixed values.
+        if not value.isdigit():
             continue
-        if cleaned in seen:
+        if value in seen:
             continue
-        seen.add(cleaned)
-        normalized.append(cleaned)
+        seen.add(value)
+        normalized.append(value)
     return normalized
 
 

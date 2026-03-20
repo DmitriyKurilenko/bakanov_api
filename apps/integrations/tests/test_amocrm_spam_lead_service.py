@@ -1,4 +1,5 @@
 from types import SimpleNamespace
+from unittest.mock import patch
 
 from django.test import SimpleTestCase, override_settings
 
@@ -68,8 +69,9 @@ class AmoCrmSpamLeadSyncServiceTests(SimpleTestCase):
     def test_sync_lead_collects_and_deduplicates_values_from_multiple_entities(self):
         lead_payload = {
             "id": 21688211,
+            "created_at": 1700000000,
             "custom_fields_values": [
-                {"field_id": 952089, "values": [{"value": "1772125921407675467"}]},
+                {"field_id": 952089, "values": [{"value": "1772125921407675467"}, {"value": "cid=1772125921407675467"}]},
             ],
             "_embedded": {"contacts": [{"id": 111}], "companies": [{"id": 222}]},
         }
@@ -107,7 +109,36 @@ class AmoCrmSpamLeadSyncServiceTests(SimpleTestCase):
             uploaded["client_ids"],
             ["1772125921407675467", "1772217754100347291", "1772010046373670895"],
         )
+        self.assertEqual(uploaded["conversion_timestamp"], 1700000000)
         self.assertEqual(result.sources, ["lead", "contact:111", "company:222"])
+
+    @override_settings(AMOCRM_SPAM_CLIENT_ID_FIELD_IDS="952089")
+    def test_sync_lead_uses_now_when_created_at_missing(self):
+        lead_payload = {
+            "id": 21688211,
+            "custom_fields_values": [
+                {"field_id": 952089, "values": [{"value": "1772125921407675467"}]},
+            ],
+        }
+        amocrm = SimpleNamespace(
+            get_lead=lambda _lead_id: lead_payload,
+            get_contact=lambda _contact_id: {},
+            get_company=lambda _company_id: {},
+        )
+        uploaded: dict = {}
+
+        def _upload_spam_client_ids(**kwargs):
+            uploaded.update(kwargs)
+            return SimpleNamespace(uploading={"id": 104, "status": "UPLOADED", "source_quantity": 1, "linked_quantity": 1})
+
+        metrika = SimpleNamespace(upload_spam_client_ids=_upload_spam_client_ids)
+        service = AmoCrmSpamLeadSyncService(amocrm=amocrm, metrika=metrika)
+
+        with patch("apps.integrations.services.amocrm_spam_lead_service.time.time", return_value=1710000000):
+            result = service.sync_lead(lead_id=21688211)
+
+        self.assertEqual(result.status, "ok")
+        self.assertEqual(uploaded["conversion_timestamp"], 1710000000)
 
     def test_sync_lead_returns_error_when_no_client_ids(self):
         lead_payload = {"id": 21688211, "custom_fields_values": []}
