@@ -13,8 +13,15 @@ from apps.integrations.services.telephony_pipeline import (
     TelephonyWebhookProcessor,
     extract_telephony_payload,
 )
-from apps.integrations.tasks import process_amocrm_spam_lead_webhook
+from apps.integrations.tasks import (
+    process_amocrm_spam_lead_webhook,
+    process_bitrix24_webhook,
+)
 from apps.integrations.services.translation_service import translate_ru_to_en
+from apps.integrations.services.bitrix24_webhook_handler import (
+    extract_webhook_payload,
+    verify_inbound_token,
+)
 
 router = Router(tags=["integrations"])
 logger = logging.getLogger(__name__)
@@ -228,3 +235,47 @@ def google_form_cruise_webhook(request):
     )
     _send_google_form_report_emails(result)
     return _google_form_report_response(result)
+
+
+# ------------------------------------------------------------------
+# Bitrix24 webhooks
+# ------------------------------------------------------------------
+
+@router.post("/webhooks/bitrix24")
+def bitrix24_webhook(request):
+    """Receive incoming Bitrix24 CRM events.
+
+    Bitrix24 sends events as POST with form-encoded body containing
+    ``event``, ``data[FIELDS][ID]``, and ``auth[application_token]``.
+    The event is validated, then dispatched to a Celery task.
+    """
+    data = _extract_request_payload(request)
+    event, entity_id, token = extract_webhook_payload(data)
+
+    if not verify_inbound_token(token):
+        logger.warning(
+            "Bitrix24 webhook: invalid token for event=%s entity_id=%s",
+            event,
+            entity_id,
+        )
+        return {"status": "error", "detail": "Invalid token"}
+
+    if not event:
+        return {"status": "error", "detail": "Missing event type"}
+
+    if entity_id is None:
+        return {"status": "error", "detail": "Missing entity ID"}
+
+    task = process_bitrix24_webhook.delay(event=event, entity_id=entity_id)
+    logger.info(
+        "Bitrix24 webhook queued: event=%s entity_id=%s task_id=%s",
+        event,
+        entity_id,
+        task.id,
+    )
+    return {
+        "status": "ok",
+        "event": event,
+        "entity_id": entity_id,
+        "task_id": task.id,
+    }

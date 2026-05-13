@@ -1,8 +1,12 @@
+import logging
+
 import requests
 from celery import shared_task
 
 from apps.integrations.services.amocrm_spam_lead_service import AmoCrmSpamLeadSyncService
 from apps.integrations.services.telegram_service import send_telegram_message
+
+logger = logging.getLogger(__name__)
 
 
 @shared_task
@@ -27,3 +31,30 @@ def process_amocrm_spam_lead_webhook(lead_id: int) -> dict:
         "uploading": result.uploading or {},
         "sources": result.sources or [],
     }
+
+
+# ------------------------------------------------------------------
+# Bitrix24
+# ------------------------------------------------------------------
+
+@shared_task(
+    autoretry_for=(requests.RequestException,),
+    retry_backoff=True,
+    retry_jitter=True,
+    retry_kwargs={"max_retries": 5},
+)
+def process_bitrix24_webhook(event: str, entity_id: int) -> dict:
+    """Async processing of an incoming Bitrix24 CRM event."""
+    from apps.integrations.services.bitrix24_webhook_handler import (
+        Bitrix24WebhookProcessor,
+    )
+
+    processor = Bitrix24WebhookProcessor()
+    result = processor.process(event=event, entity_id=entity_id)
+    logger.info(
+        "Bitrix24 task done: event=%s entity_id=%s status=%s",
+        result.event,
+        result.entity_id,
+        result.status,
+    )
+    return result.as_dict()
