@@ -143,36 +143,6 @@ services:
           cpus: '0.05'
           memory: 64M
 
-  flower:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    restart: always
-    command: celery -A config flower --port=5555 --basic_auth=${FLOWER_USER}:${FLOWER_PASSWORD}
-    expose:
-      - "5555"
-    networks:
-      - backend
-      - proxy
-    depends_on:
-      - redis
-    env_file:
-      - .env
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.kapitan_flower.rule=Host(`${DOMAIN}`) && PathPrefix(`/flower`)"
-      - "traefik.http.routers.kapitan_flower.entrypoints=websecure"
-      - "traefik.http.routers.kapitan_flower.tls.certresolver=le"
-      - "traefik.http.services.kapitan_flower.loadbalancer.server.port=5555"
-    deploy:
-      resources:
-        limits:
-          cpus: '0.25'
-          memory: 256M
-        reservations:
-          cpus: '0.05'
-          memory: 64M
-
 volumes:
   postgres_data:
     driver: local
