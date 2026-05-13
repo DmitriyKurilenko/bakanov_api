@@ -14,17 +14,16 @@
 
 ---
 
-### 2026-05-13 — Bitrix24 spam lead: автозагрузка при статусе СПАМ (v0.2.1-dev)
+### 2026-05-13 — Упрощение деплоя: единый docker-compose.yml + traefik (v0.2.1-dev)
 
 - **Файлы:**
-  - `apps/integrations/tasks.py` — автотриггер `Bitrix24SpamLeadSyncService` при `ONCRMLEADUPDATE` со статусом СПАМ
-  - `config/settings.py` — `BITRIX24_SPAM_STATUS_ID`
-  - `VERSION` → `0.2.1-dev`
-  - `CHANGELOG.md` — секция [0.2.1-dev]
-  - `docs/TASK_STATE.md`, `docs/DEV_LOG.md`, `docs/DECISIONS.md`
-- **Что сделано:** При переносе лида в этап "СПАМ" (`STATUS_ID=UC_Q4I0BY`) в Bitrix24, webhook `ONCRMLEADUPDATE` автоматически запускает загрузку `client_id` в Яндекс.Метрику.
-- **Валидация:** `manage.py check` — OK. Все тесты проходят.
-- **Риски:** Статус СПАМ должен быть настроен в Bitrix24 и в `.env` (`BITRIX24_SPAM_STATUS_ID`).
+  - Удалены: `docker-compose.prod.yml`, `.env.dev.example`, `.env.example`
+  - `docker-compose.yml` — единственный compose, traefik labels, external network `traefik-public`
+  - `.env.example` — переименован из `.env.prod.example`, `DOMAIN=kapitan.prvms.ru`
+  - `deploy.sh` — `PRIMARY_COMPOSE_FILE=docker-compose.yml`, убрана проверка на dev compose
+- **Что сделано:** Один compose-файл для production с traefik, один `.env.example`. Убраны дублирующие dev-файлы.
+- **Валидация:** `manage.py check` — OK.
+- **Риски:** Требуется ручная миграция на сервере (убрать старые volume `./:/app`).
 
 ### 2026-05-13 — Подготовка коммита (v0.2.0-dev)
 

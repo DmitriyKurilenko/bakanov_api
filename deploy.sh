@@ -22,7 +22,7 @@ if [[ -f "$SCRIPTS_ENV" ]]; then
 fi
 
 ENV_FILE="${ENV_FILE:-.env}"
-PRIMARY_COMPOSE_FILE="${PRIMARY_COMPOSE_FILE:-docker-compose.prod.yml}"
+PRIMARY_COMPOSE_FILE="${PRIMARY_COMPOSE_FILE:-docker-compose.yml}"
 SECONDARY_COMPOSE_FILE="${SECONDARY_COMPOSE_FILE:-}"
 BACKUP_DIR="${BACKUP_DIR:-$ROOT_DIR/backups}"
 BACKUP_KEEP="${BACKUP_KEEP:-5}"
@@ -212,8 +212,25 @@ run_preflight() {
     if [[ -z "${AMOCRM_SPAM_CLIENT_ID_FIELD_IDS:-}" && -z "${AMOCRM_SPAM_CLIENT_ID_FIELD_CODES:-}" && -z "${AMOCRM_SPAM_CLIENT_ID_FIELD_NAMES:-}" ]]; then
       errors+=("Set at least one mapping variable: AMOCRM_SPAM_CLIENT_ID_FIELD_IDS / _CODES / _NAMES")
     fi
+  fi
+
+  # Bitrix24 spam lead checks
+  local bitrix_spam_enabled=0
+  for key in BITRIX24_WEBHOOK_URL BITRIX24_INBOUND_TOKEN; do
+    if [[ -n "${!key:-}" ]]; then
+      bitrix_spam_enabled=1
+      break
+    fi
+  done
+
+  if [[ "$bitrix_spam_enabled" == "1" ]]; then
+    require_nonempty "BITRIX24_WEBHOOK_URL"
+    require_nonempty "BITRIX24_INBOUND_TOKEN"
+    check_not_placeholder "BITRIX24_WEBHOOK_URL"
+    check_not_placeholder "BITRIX24_INBOUND_TOKEN"
+    warn_if_empty "BITRIX24_SPAM_STATUS_ID"
   else
-    warnings+=("Spam lead sync integration is not configured")
+    warnings+=("Bitrix24 spam lead integration is not configured")
   fi
 
   if [[ ${#errors[@]} -gt 0 ]]; then
