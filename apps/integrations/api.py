@@ -308,18 +308,6 @@ def bitrix24_spam_lead_webhook(request):
         {k: v for k, v in (data.items() if isinstance(data, dict) else [])},
     )
 
-    token = data.get("auth[application_token]") or ""
-    if not token:
-        token = _deep_get(data, "auth", "application_token") or ""
-    if isinstance(token, dict):
-        token = str(token.get("application_token", "")).strip()
-    else:
-        token = str(token).strip()
-
-    if not verify_inbound_token(token):
-        logger.warning("Bitrix24 spam webhook: invalid token")
-        return {"status": "error", "detail": "Invalid token"}
-
     entity_type = str(data.get("entity_type", "lead")).strip().lower()
     raw_entity_id = data.get("entity_id")
     if raw_entity_id is None:
