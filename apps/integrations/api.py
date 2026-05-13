@@ -296,34 +296,18 @@ def _deep_get(data: dict, *keys: str) -> object:
 def bitrix24_spam_lead_webhook(request):
     """Receive Bitrix24 spam lead/deal events and upload client_id to Metrica.
 
-    Expected payload (form-encoded or JSON):
-        entity_type=lead&entity_id=123&auth[application_token]=secret
+    Standard outgoing webhook sends form-encoded:
+        event=ONCRMLEADUPDATE&data[FIELDS][ID]=123
     """
     data = _extract_request_payload(request)
 
-    # DEBUG: log raw payload so we can see actual field names from Bitrix24
-    logger.info(
-        "Bitrix24 spam webhook raw payload keys=%s data=%s",
-        list(data.keys()) if isinstance(data, dict) else "n/a",
-        {k: v for k, v in (data.items() if isinstance(data, dict) else [])},
-    )
+    # Use the same proven parser as the main Bitrix24 webhook
+    _event, entity_id, _token = extract_webhook_payload(data)
+
+    if entity_id is None:
+        return {"status": "error", "detail": "Missing entity_id"}
 
     entity_type = str(data.get("entity_type", "lead")).strip().lower()
-    raw_entity_id = data.get("entity_id")
-    if raw_entity_id is None:
-        # Standard Bitrix24 outgoing webhook sends data[FIELDS][ID]
-        # Django keeps the key as literal string "data[FIELDS][ID]"
-        raw_entity_id = data.get("data[FIELDS][ID]")
-    if raw_entity_id is None:
-        # Fallback for JSON payload
-        fields = data.get("data", {}).get("FIELDS", {})
-        raw_entity_id = fields.get("ID")
-    if raw_entity_id is None:
-        return {"status": "error", "detail": "Missing entity_id"}
-    entity_id_str = str(raw_entity_id).strip()
-    if not entity_id_str.isdigit():
-        return {"status": "error", "detail": "Invalid entity_id"}
-    entity_id = int(entity_id_str)
 
     task = process_bitrix24_spam_lead_webhook.delay(
         entity_id=entity_id,
