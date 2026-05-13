@@ -312,6 +312,10 @@ def bitrix24_spam_lead_webhook(request):
     raw_entity_id = data.get("entity_id")
     if raw_entity_id is None:
         # Standard Bitrix24 outgoing webhook sends data[FIELDS][ID]
+        # Django keeps the key as literal string "data[FIELDS][ID]"
+        raw_entity_id = data.get("data[FIELDS][ID]")
+    if raw_entity_id is None:
+        # Fallback for JSON payload
         fields = data.get("data", {}).get("FIELDS", {})
         raw_entity_id = fields.get("ID")
     if raw_entity_id is None:
