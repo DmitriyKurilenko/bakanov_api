@@ -1,40 +1,59 @@
 services:
   web:
     build: .
-    command: sh -c "python manage.py migrate && python manage.py collectstatic --noinput && gunicorn config.wsgi:application --bind 0.0.0.0:8000 --timeout ${GUNICORN_TIMEOUT:-120} --graceful-timeout ${GUNICORN_GRACEFUL_TIMEOUT:-30} --workers ${GUNICORN_WORKERS:-2}"
+    command: gunicorn config.wsgi:application --bind 0.0.0.0:8000 --timeout ${GUNICORN_TIMEOUT:-120} --graceful-timeout ${GUNICORN_GRACEFUL_TIMEOUT:-30} --workers ${GUNICORN_WORKERS:-2}
     env_file:
       - .env
+    restart: unless-stopped
+    # NO volume ./:/app — code must come from the built image only
     volumes:
-      - ./:/app
-    ports:
-      - "${WEB_PORT:-8000}:8000"
+      - static_data:/app/staticfiles
+      - media_data:/app/media
+    # No ports — traefik handles external access
+    networks:
+      - default
+      - traefik-public
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.kapitan.rule=Host(\`${DOMAIN}\`)"
+      - "traefik.http.routers.kapitan.entrypoints=websecure"
+      - "traefik.http.routers.kapitan.tls.certresolver=letsencrypt"
+      - "traefik.http.services.kapitan.loadbalancer.server.port=8000"
     depends_on:
       - db
       - redis
 
   db:
     image: postgres:18-alpine
+    env_file:
+      - .env
     environment:
       POSTGRES_DB: ${POSTGRES_DB}
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    restart: unless-stopped
     volumes:
       - postgres_data:/var/lib/postgresql
-    ports:
-      - "${POSTGRES_PORT:-5432}:5432"
+    networks:
+      - default
 
   redis:
     image: redis:8-alpine
-    ports:
-      - "${REDIS_PORT:-6379}:6379"
+    restart: unless-stopped
+    networks:
+      - default
 
   celery_worker:
     build: .
     command: celery -A config worker -l info
     env_file:
       - .env
+    restart: unless-stopped
     volumes:
-      - ./:/app
+      - static_data:/app/staticfiles
+      - media_data:/app/media
+    networks:
+      - default
     depends_on:
       - web
       - redis
@@ -44,8 +63,12 @@ services:
     command: celery -A config beat -l info
     env_file:
       - .env
+    restart: unless-stopped
     volumes:
-      - ./:/app
+      - static_data:/app/staticfiles
+      - media_data:/app/media
+    networks:
+      - default
     depends_on:
       - web
       - redis
@@ -55,12 +78,21 @@ services:
     command: celery -A config flower --port=5555
     env_file:
       - .env
-    volumes:
-      - ./:/app
+    restart: unless-stopped
+    # Flower accessible only via localhost/SSH tunnel
     ports:
-      - "5555:5555"
+      - "127.0.0.1:5555:5555"
+    networks:
+      - default
     depends_on:
       - redis
 
 volumes:
   postgres_data:
+  static_data:
+  media_data:
+
+networks:
+  default:
+  traefik-public:
+    external: true
