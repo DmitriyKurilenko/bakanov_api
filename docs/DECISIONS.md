@@ -92,3 +92,17 @@
 - env: `BITRIX24_SPAM_CLIENT_ID_FIELD_CODES`, `BITRIX24_SPAM_CLIENT_ID_FIELD_NAMES`.
 
 **Последствия:** Новые зависимости не добавлены. Требуется настроить `BITRIX24_WEBHOOK_URL` для outgoing запросов к Bitrix24.
+
+---
+
+## DEC-007: Bitrix24 spam lead — автозагрузка при статусе СПАМ (2026-05-13)
+
+**Контекст:** Необходимо автоматически загружать `client_id` в Метрику только при переносе лида в специальный этап "СПАМ" в Bitrix24.
+
+**Решение:**
+- `process_bitrix24_webhook` (Celery task) при событии `ONCRMLEADUPDATE` проверяет `STATUS_ID` полученного лида.
+- Если `STATUS_ID` совпадает с `BITRIX24_SPAM_STATUS_ID` (по умолчанию `IN_PROCESS`, переопределяется через env), автоматически вызывается `Bitrix24SpamLeadSyncService.sync_entity()` для загрузки в Метрику.
+- Статус "СПАМ" создан как отдельный этап в воронке (`STATUS_ID=UC_Q4I0BY`).
+- Отдельный endpoint `/webhooks/bitrix24/spam-lead` сохранён для ручной/тестовой загрузки.
+
+**Последствия:** Требуется настроить `BITRIX24_SPAM_STATUS_ID` в `.env` под реальный этап в Bitrix24.

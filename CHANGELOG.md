@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.2.1-dev] — 2026-05-13
+
+### Added
+- Bitrix24 spam lead: automatic upload to Yandex.Metrica when lead status changes to "СПАМ" (`STATUS_ID=UC_Q4I0BY`)
+- Env variable `BITRIX24_SPAM_STATUS_ID` for configurable spam stage detection
+- `process_bitrix24_webhook` now triggers `Bitrix24SpamLeadSyncService` on `ONCRMLEADUPDATE` with matching spam status
+
 ## [0.2.0-dev] — 2026-05-13
 
 ### Added

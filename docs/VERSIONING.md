@@ -37,7 +37,7 @@
 
 ### Примеры
 ```
-feat(crm): добавить генерацию доп. договора
+0.2.2-dev feat(crm): добавить генерацию доп. договора
 fix(integrations): исправить парсинг webhook Novofon
 refactor(dashboard): вынести логику отчётов в сервисы
 style(crm): привести models.py к PEP 8

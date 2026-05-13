@@ -45,12 +45,34 @@ def process_amocrm_spam_lead_webhook(lead_id: int) -> dict:
 )
 def process_bitrix24_webhook(event: str, entity_id: int) -> dict:
     """Async processing of an incoming Bitrix24 CRM event."""
+    from django.conf import settings
     from apps.integrations.services.bitrix24_webhook_handler import (
         Bitrix24WebhookProcessor,
+    )
+    from apps.integrations.services.bitrix24_spam_lead_service import (
+        Bitrix24SpamLeadSyncService,
     )
 
     processor = Bitrix24WebhookProcessor()
     result = processor.process(event=event, entity_id=entity_id)
+
+    # If lead moved to spam status — upload client_id to Metrica.
+    spam_status = getattr(settings, "BITRIX24_SPAM_STATUS_ID", "IN_PROCESS")
+    if (
+        event == "ONCRMLEADUPDATE"
+        and result.entity_data.get("STATUS_ID") == spam_status
+    ):
+        spam_result = Bitrix24SpamLeadSyncService.from_settings().sync_entity(
+            entity_id=int(entity_id),
+            entity_type="lead",
+        )
+        logger.info(
+            "Bitrix24 spam auto-upload: entity_id=%s status=%s uploaded=%s",
+            entity_id,
+            spam_result.status,
+            spam_result.uploaded_client_ids,
+        )
+
     logger.info(
         "Bitrix24 task done: event=%s entity_id=%s status=%s",
         result.event,

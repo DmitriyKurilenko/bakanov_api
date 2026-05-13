@@ -31,3 +31,4 @@
 | 3 | Интеграция с Битрикс24 | 2026-04-09 | Сервис, webhook endpoint, Celery task, 34 теста |
 | 4 | Битрикс24 — встроенное приложение | 2026-04-10 | OAuth, Bitrix24Portal model, iframe views, DaisyUI UI, BX24 JS SDK, 16 тестов |
 | 6 | Bitrix24 — фильтр спам-заявок (аналог amoCRM) | 2026-05-13 | Сервис, endpoint, Celery, логирование, 22 теста |
+| 7 | Bitrix24 spam lead: автозагрузка при статусе СПАМ | 2026-05-13 | Автотриггер на ONCRMLEADUPDATE, BITRIX24_SPAM_STATUS_ID |
