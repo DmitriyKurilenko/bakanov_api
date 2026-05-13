@@ -1,114 +1,192 @@
 services:
-  web:
-    build: .
-    command: gunicorn config.wsgi:application --bind 0.0.0.0:8000 --timeout ${GUNICORN_TIMEOUT:-120} --graceful-timeout ${GUNICORN_GRACEFUL_TIMEOUT:-30} --workers ${GUNICORN_WORKERS:-2}
-    env_file:
-      - .env
-    restart: unless-stopped
-    # NO volume ./:/app — code must come from the built image only
-    volumes:
-      - static_data:/app/staticfiles
-      - media_data:/app/media
-    # No ports — traefik handles external access
-    networks:
-      - default
-      - traefik-public
-    labels:
-<<<<<<< HEAD
-      - 'traefik.enable=true'
-      - 'traefik.http.routers.kapitan.rule=Host(`${DOMAIN}`)'
-      - 'traefik.http.routers.kapitan.entrypoints=websecure'
-      - 'traefik.http.routers.kapitan.tls.certresolver=letsencrypt'
-      - 'traefik.http.services.kapitan.loadbalancer.server.port=8000'
-=======
-      - "traefik.enable=true"
-      - "traefik.http.routers.kapitan.rule=Host(\`${DOMAIN}\`)"
-      - "traefik.http.routers.kapitan.entrypoints=websecure"
-      - "traefik.http.routers.kapitan.tls.certresolver=letsencrypt"
-      - "traefik.http.services.kapitan.loadbalancer.server.port=8000"
->>>>>>> main
-    depends_on:
-      - db
-      - redis
-
   db:
-<<<<<<< HEAD
     image: postgres:16-alpine
-=======
-    image: postgres:18-alpine
->>>>>>> main
-    env_file:
-      - .env
+    restart: always
+    expose:
+      - "5432"
     environment:
       POSTGRES_DB: ${POSTGRES_DB}
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-    restart: unless-stopped
     volumes:
       - postgres_data:/var/lib/postgresql
     networks:
-      - default
+      - backend
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.1'
+          memory: 128M
 
   redis:
-<<<<<<< HEAD
     image: redis:7-alpine
-=======
-    image: redis:8-alpine
->>>>>>> main
-    restart: unless-stopped
+    restart: always
+    expose:
+      - "6379"
     networks:
-      - default
+      - backend
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 256M
+        reservations:
+          cpus: '0.05'
+          memory: 64M
+
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: always
+    command: gunicorn config.wsgi:application --bind 0.0.0.0:8000 --timeout 120 --workers 2
+    expose:
+      - "8000"
+    volumes:
+      - static_data:/app/staticfiles
+      - media_data:/app/media
+    networks:
+      - backend
+      - proxy
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    env_file:
+      - .env
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8000/api/healthz || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.kapitan_api.rule=Host(`${DOMAIN}`)"
+      - "traefik.http.routers.kapitan_api.entrypoints=websecure"
+      - "traefik.http.routers.kapitan_api.tls.certresolver=le"
+      - "traefik.http.services.kapitan_api.loadbalancer.server.port=8000"
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.1'
+          memory: 128M
 
   celery_worker:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: always
     command: celery -A config worker -l info
-    env_file:
-      - .env
-    restart: unless-stopped
     volumes:
       - static_data:/app/staticfiles
       - media_data:/app/media
     networks:
-      - default
+      - backend
+      - proxy
     depends_on:
       - web
       - redis
+    env_file:
+      - .env
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.1'
+          memory: 128M
 
   celery_beat:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: always
     command: celery -A config beat -l info
-    env_file:
-      - .env
-    restart: unless-stopped
     volumes:
       - static_data:/app/staticfiles
       - media_data:/app/media
     networks:
-      - default
+      - backend
+      - proxy
     depends_on:
       - web
       - redis
-
-  flower:
-    build: .
-    command: celery -A config flower --port=5555
     env_file:
       - .env
-    restart: unless-stopped
-    # Flower accessible only via localhost/SSH tunnel
-    ports:
-      - "127.0.0.1:5555:5555"
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 256M
+        reservations:
+          cpus: '0.05'
+          memory: 64M
+
+  flower:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: always
+    command: celery -A config flower --port=5555 --basic_auth=${FLOWER_USER}:${FLOWER_PASSWORD}
+    expose:
+      - "5555"
     networks:
-      - default
+      - backend
+      - proxy
     depends_on:
       - redis
+    env_file:
+      - .env
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.kapitan_flower.rule=Host(`${DOMAIN}`) && PathPrefix(`/flower`)"
+      - "traefik.http.routers.kapitan_flower.entrypoints=websecure"
+      - "traefik.http.routers.kapitan_flower.tls.certresolver=le"
+      - "traefik.http.services.kapitan_flower.loadbalancer.server.port=5555"
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 256M
+        reservations:
+          cpus: '0.05'
+          memory: 64M
 
 volumes:
   postgres_data:
+    driver: local
+  redis_data:
+    driver: local
   static_data:
+    driver: local
   media_data:
+    driver: local
 
 networks:
-  default:
-  traefik-public:
+  backend:
+    driver: bridge
+    internal: true
+  proxy:
     external: true
+    name: proxy
