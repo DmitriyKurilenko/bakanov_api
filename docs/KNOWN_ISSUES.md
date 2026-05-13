@@ -15,4 +15,9 @@
 
 ---
 
-_Пока известных проблем не зафиксировано._
+### KI-001: NameError в bitrix24_spam_lead_service.py
+- **Статус:** closed
+- **Обнаружено:** 2026-05-13
+- **Закрыто:** 2026-05-13
+- **Описание:** В `bitrix24_spam_lead_service.py` отсутствовал `import logging` и `logger = logging.getLogger(__name__)`. Из-за этого метод `_fetch_entity` падал с `NameError` при попытке логирования, но ошибка тихо глоталась `except Exception`, и метод возвращал пустой dict. Сервис считал, что сущность в Bitrix24 не найдена.
+- **Обходной путь:** Добавлен импорт logging и logger.

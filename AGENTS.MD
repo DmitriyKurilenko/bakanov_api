@@ -9,7 +9,8 @@ Primary goal: avoid repeated regressions and loss of context between sessions.
 2. `docs/DECISIONS.md`
 3. `docs/KNOWN_ISSUES.md`
 4. `docs/DEV_LOG.md` (latest entries first)
-5. Current task file (`task.md` when present)
+5. `docs/PROJECT_OVERVIEW.md` (полная документация по проекту)
+6. Current task file (`task.md` when present)
 
 If instructions conflict, do not guess. Stop and ask the user for a decision.
 

@@ -56,3 +56,39 @@
 - Паттерн идентичен AmoCRM: service → task → API endpoint.
 
 **Последствия:** Новые зависимости не добавлены. Используется только `requests` (уже в стеке).
+
+---
+
+## DEC-005: Битрикс24 — встроенное приложение (local app) (2026-04-10)
+
+**Контекст:** Интеграция должна иметь интерфейс внутри Битрикс24 (iframe).
+
+**Решение:**
+- Тип: локальное приложение (server iframe), регистрируется в Bitrix24 Marketplace → Разработчикам → Локальные приложения.
+- Модель `Bitrix24Portal` хранит credentials портала (member_id, domain, access/refresh tokens, expires_at, app_status).
+- OAuth-сервис отвечает за сохранение и обновление токенов через `https://oauth.bitrix.info/oauth/token/`.
+- `Bitrix24Client` расширен методом `from_portal()` и автоматической инъекцией `auth` параметра в OAuth-режиме.
+- Views: `bitrix24_install` (POST, BX24.installFinish()), `bitrix24_app` (POST, основной UI).
+- Оба endpoint: `@csrf_exempt` + `@xframe_options_exempt` (Bitrix24 iframe требует отсутствия X-Frame-Options и не шлёт CSRF).
+- UI: DaisyUI + Alpine.js для визуала, BX24 JS SDK для получения текущего пользователя и быстрых CRM-запросов (callBatch).
+- Конфигурация: `BITRIX24_APP_ID`, `BITRIX24_APP_SECRET` (env).
+
+**Последствия:** Требуется HTTPS для production. Новые зависимости не добавлены.
+
+---
+
+## DEC-006: Bitrix24 — фильтр спам-заявок (offline conversions) (2026-05-13)
+
+**Контекст:** Нужно загружать `client_id` спам-лидов/сделок из Bitrix24 в Яндекс.Метрику, аналогично amoCRM.
+
+**Решение:**
+- Сервис `Bitrix24SpamLeadSyncService` (паттерн идентичен `AmoCrmSpamLeadSyncService`):
+  - Получает сущность (lead/deal) из Bitrix24 REST API.
+  - Извлекает `client_id` из кастомных полей (`UF_CRM_*`) самой сущности, затем связанного контакта (`CONTACT_ID`), затем связанной компании (`COMPANY_ID`).
+  - Поиск по кодам полей (`BITRIX24_SPAM_CLIENT_ID_FIELD_CODES`) или по названиям (`BITRIX24_SPAM_CLIENT_ID_FIELD_NAMES`), либо эвристически.
+  - Загружает найденные `client_id` в Метрику через `YandexMetricaService.upload_spam_client_ids()`.
+- Endpoint: `POST /api/integrations/webhooks/bitrix24/spam-lead` — принимает `entity_type`, `entity_id`, `auth[application_token]`, валидирует токен, ставит задачу Celery.
+- Celery task: `process_bitrix24_spam_lead_webhook` с автоповторами при сетевых ошибках.
+- env: `BITRIX24_SPAM_CLIENT_ID_FIELD_CODES`, `BITRIX24_SPAM_CLIENT_ID_FIELD_NAMES`.
+
+**Последствия:** Новые зависимости не добавлены. Требуется настроить `BITRIX24_WEBHOOK_URL` для outgoing запросов к Bitrix24.

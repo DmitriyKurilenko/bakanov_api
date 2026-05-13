@@ -9,13 +9,16 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class Bitrix24Client:
-    """Client for Bitrix24 REST API via outgoing webhook.
+    """Client for Bitrix24 REST API.
 
-    Outgoing webhook URL already contains the auth token, e.g.:
-    https://company.bitrix24.ru/rest/1/abc123xyz/
+    Two modes:
+    1. **Webhook mode** — ``webhook_url`` contains auth token.
+    2. **OAuth mode** — ``rest_url`` + ``access_token`` (local/server app).
     """
 
-    webhook_url: str
+    webhook_url: str = ""
+    rest_url: str = ""
+    access_token: str = ""
     timeout: int = 30
 
     @classmethod
@@ -32,6 +35,18 @@ class Bitrix24Client:
             timeout=timeout,
         )
 
+    @classmethod
+    def from_portal(cls, portal: "Bitrix24Portal") -> "Bitrix24Client":  # noqa: F821
+        """Create a client backed by OAuth tokens from a portal record."""
+        from apps.integrations.services.bitrix24_oauth import ensure_valid_token
+
+        portal = ensure_valid_token(portal)
+        return cls(
+            rest_url=portal.rest_url.rstrip("/"),
+            access_token=portal.access_token,
+            timeout=int(getattr(settings, "BITRIX24_TIMEOUT", 30)),
+        )
+
     # ------------------------------------------------------------------
     # Low-level transport
     # ------------------------------------------------------------------
@@ -46,10 +61,17 @@ class Bitrix24Client:
         Bitrix24 REST always returns ``{"result": ...}`` on success and
         ``{"error": "...", "error_description": "..."}`` on failure.
         """
-        url = f"{self.webhook_url}/{method}"
+        if self.access_token and self.rest_url:
+            url = f"{self.rest_url}/{method}"
+            call_params = dict(params or {})
+            call_params["auth"] = self.access_token
+        else:
+            url = f"{self.webhook_url}/{method}"
+            call_params = params or {}
+
         response = requests.post(
             url,
-            json=params or {},
+            json=call_params,
             timeout=self.timeout,
         )
 

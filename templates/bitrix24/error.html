@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="light">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Ошибка — Bakanov</title>
+  {% load static %}
+  <script src="{% static 'vendor/tailwindcdn.js' %}"></script>
+  <link href="{% static 'vendor/daisyui.full.min.css' %}" rel="stylesheet" type="text/css" />
+</head>
+<body class="min-h-screen flex items-center justify-center bg-base-200 text-base-content">
+  <div class="card bg-base-100 shadow-lg max-w-md w-full">
+    <div class="card-body items-center text-center">
+      <h2 class="card-title text-error">Ошибка</h2>
+      <p>{{ message }}</p>
+    </div>
+  </div>
+</body>
+</html>

@@ -17,6 +17,9 @@
 | 1 | PEP 8 рефакторинг кодовой базы | planned | Требуется анализ и план, ждёт одобрения |
 | 2 | Создание docs/ структуры проекта | done | Файлы документации |
 | 3 | Интеграция с Битрикс24 | done | Incoming + outgoing webhooks, 34 теста |
+| 4 | Битрикс24 — встроенное приложение (iframe) | done | OAuth, model, views, templates, 16 тестов |
+| 5 | Создание полной документации проекта | done | docs/PROJECT_OVERVIEW.md |
+| 6 | Bitrix24 — фильтр спам-заявок (аналог amoCRM) | done | Сервис, endpoint, Celery, логирование, 22 теста |
 
 ---
 
@@ -26,3 +29,5 @@
 |---|--------|------|---------|
 | 2 | Создание docs/ структуры проекта | 2026-04-09 | TASK_STATE, DECISIONS, KNOWN_ISSUES, DEV_LOG, RELEASE_NOTES, VERSIONING |
 | 3 | Интеграция с Битрикс24 | 2026-04-09 | Сервис, webhook endpoint, Celery task, 34 теста |
+| 4 | Битрикс24 — встроенное приложение | 2026-04-10 | OAuth, Bitrix24Portal model, iframe views, DaisyUI UI, BX24 JS SDK, 16 тестов |
+| 6 | Bitrix24 — фильтр спам-заявок (аналог amoCRM) | 2026-05-13 | Сервис, endpoint, Celery, логирование, 22 теста |

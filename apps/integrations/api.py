@@ -16,6 +16,7 @@ from apps.integrations.services.telephony_pipeline import (
 from apps.integrations.tasks import (
     process_amocrm_spam_lead_webhook,
     process_bitrix24_webhook,
+    process_bitrix24_spam_lead_webhook,
 )
 from apps.integrations.services.translation_service import translate_ru_to_en
 from apps.integrations.services.bitrix24_webhook_handler import (
@@ -276,6 +277,71 @@ def bitrix24_webhook(request):
     return {
         "status": "ok",
         "event": event,
+        "entity_id": entity_id,
+        "task_id": task.id,
+    }
+
+
+def _deep_get(data: dict, *keys: str) -> object:
+    """Safely traverse nested dicts."""
+    value: object = data
+    for key in keys:
+        if not isinstance(value, dict):
+            return None
+        value = value.get(key)
+    return value
+
+
+@router.post("/webhooks/bitrix24/spam-lead")
+def bitrix24_spam_lead_webhook(request):
+    """Receive Bitrix24 spam lead/deal events and upload client_id to Metrica.
+
+    Expected payload (form-encoded or JSON):
+        entity_type=lead&entity_id=123&auth[application_token]=secret
+    """
+    data = _extract_request_payload(request)
+
+    # DEBUG: log raw payload so we can see actual field names from Bitrix24
+    logger.info(
+        "Bitrix24 spam webhook raw payload keys=%s data=%s",
+        list(data.keys()) if isinstance(data, dict) else "n/a",
+        {k: v for k, v in (data.items() if isinstance(data, dict) else [])},
+    )
+
+    token = data.get("auth[application_token]") or ""
+    if not token:
+        token = _deep_get(data, "auth", "application_token") or ""
+    if isinstance(token, dict):
+        token = str(token.get("application_token", "")).strip()
+    else:
+        token = str(token).strip()
+
+    if not verify_inbound_token(token):
+        logger.warning("Bitrix24 spam webhook: invalid token")
+        return {"status": "error", "detail": "Invalid token"}
+
+    entity_type = str(data.get("entity_type", "lead")).strip().lower()
+    raw_entity_id = data.get("entity_id")
+    if raw_entity_id is None:
+        return {"status": "error", "detail": "Missing entity_id"}
+    entity_id_str = str(raw_entity_id).strip()
+    if not entity_id_str.isdigit():
+        return {"status": "error", "detail": "Invalid entity_id"}
+    entity_id = int(entity_id_str)
+
+    task = process_bitrix24_spam_lead_webhook.delay(
+        entity_id=entity_id,
+        entity_type=entity_type,
+    )
+    logger.info(
+        "Bitrix24 spam webhook queued: entity_type=%s entity_id=%s task_id=%s",
+        entity_type,
+        entity_id,
+        task.id,
+    )
+    return {
+        "status": "ok",
+        "entity_type": entity_type,
         "entity_id": entity_id,
         "task_id": task.id,
     }

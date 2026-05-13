@@ -2,6 +2,19 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.2.0-dev] — 2026-05-13
+
+### Added
+- Bitrix24 — фильтр спам-заявок: endpoint `POST /api/integrations/webhooks/bitrix24/spam-lead`
+- Сервис `Bitrix24SpamLeadSyncService` для извлечения `client_id` из UF_CRM_ полей лида/контакта/компании Bitrix24
+- Celery task `process_bitrix24_spam_lead_webhook` с auto-retry и exponential backoff
+- Env-переменные: `BITRIX24_SPAM_CLIENT_ID_FIELD_CODES`, `BITRIX24_SPAM_CLIENT_ID_FIELD_NAMES`
+- 22 теста для Bitrix24 spam lead (сервис + API)
+- Подробное логирование входящих webhook payload и UF_CRM_ полей для диагностики
+
+### Fixed
+- Исправлен `NameError: name 'logger' is not defined` в `bitrix24_spam_lead_service.py`
+
 ## [0.1.0-dev] — 2026-04-09
 
 ### Added
