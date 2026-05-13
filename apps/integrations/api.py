@@ -323,6 +323,10 @@ def bitrix24_spam_lead_webhook(request):
     entity_type = str(data.get("entity_type", "lead")).strip().lower()
     raw_entity_id = data.get("entity_id")
     if raw_entity_id is None:
+        # Standard Bitrix24 outgoing webhook sends data[FIELDS][ID]
+        fields = data.get("data", {}).get("FIELDS", {})
+        raw_entity_id = fields.get("ID")
+    if raw_entity_id is None:
         return {"status": "error", "detail": "Missing entity_id"}
     entity_id_str = str(raw_entity_id).strip()
     if not entity_id_str.isdigit():
