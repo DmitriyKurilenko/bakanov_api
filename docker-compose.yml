@@ -14,17 +14,29 @@ services:
       - default
       - traefik-public
     labels:
+<<<<<<< HEAD
       - 'traefik.enable=true'
       - 'traefik.http.routers.kapitan.rule=Host(`${DOMAIN}`)'
       - 'traefik.http.routers.kapitan.entrypoints=websecure'
       - 'traefik.http.routers.kapitan.tls.certresolver=letsencrypt'
       - 'traefik.http.services.kapitan.loadbalancer.server.port=8000'
+=======
+      - "traefik.enable=true"
+      - "traefik.http.routers.kapitan.rule=Host(\`${DOMAIN}\`)"
+      - "traefik.http.routers.kapitan.entrypoints=websecure"
+      - "traefik.http.routers.kapitan.tls.certresolver=letsencrypt"
+      - "traefik.http.services.kapitan.loadbalancer.server.port=8000"
+>>>>>>> main
     depends_on:
       - db
       - redis
 
   db:
+<<<<<<< HEAD
     image: postgres:16-alpine
+=======
+    image: postgres:18-alpine
+>>>>>>> main
     env_file:
       - .env
     environment:
@@ -38,7 +50,11 @@ services:
       - default
 
   redis:
+<<<<<<< HEAD
     image: redis:7-alpine
+=======
+    image: redis:8-alpine
+>>>>>>> main
     restart: unless-stopped
     networks:
       - default
