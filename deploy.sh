@@ -53,7 +53,7 @@ done
 MAX_HEALTH_RETRIES=20
 for i in $(seq 1 "$MAX_HEALTH_RETRIES"); do
   if docker compose exec -T web \
-    python -c "import json,sys,urllib.request; req=urllib.request.Request('http://localhost:8000/api/healthz'); body=urllib.request.urlopen(req,timeout=5).read().decode('utf-8'); data=json.loads(body); sys.exit(0 if data.get('status')=='ok' else 1)" >/dev/null 2>&1; then
+    python -c "import json,sys,urllib.request; req=urllib.request.Request('http://localhost:8000/api/healthz', headers={'X-Forwarded-Proto': 'https'}); body=urllib.request.urlopen(req,timeout=5).read().decode('utf-8'); data=json.loads(body); sys.exit(0 if data.get('status')=='ok' else 1)" >/dev/null 2>&1; then
     log "Healthcheck OK"
     break
   fi
