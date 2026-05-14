@@ -2,6 +2,21 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.3.0-dev] — 2026-05-14
+
+### Added
+- Bitrix24 contract generation: iframe form in deal detail tab (`CRM_DEAL_DETAIL_TAB` placement)
+- `Bitrix24ContractService` — maps Bitrix24 `UF_CRM_*` fields to contract context, renders PDF, uploads to deal
+- `ContractRenderer.build_context_from_data()` — source-agnostic method for building template context from any data source
+- Views `bitrix24_contract_form` and `bitrix24_contract_generate` with CSRF exempt + X-Frame-Options exempt
+- Template `bitrix24/contract_form.html` — DaisyUI + Alpine.js + BX24 JS SDK (auto-fill from deal/contact)
+- 16 env variables `BITRIX24_CONTRACT_FIELD_*` for configurable UF_CRM_* field mapping
+- Routes `/bitrix24/contract/` and `/bitrix24/contract/generate/`
+- Tests for Bitrix24 contract views, service, and field helpers
+
+### Changed
+- `ContractRenderer._build_context()` refactored to delegate to `build_context_from_data()`
+
 ## [0.2.1-dev] — 2026-05-13
 
 ### Added

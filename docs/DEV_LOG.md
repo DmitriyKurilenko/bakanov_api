@@ -14,6 +14,22 @@
 
 ---
 
+### 2026-05-14 — Bitrix24: генерация договоров (iframe placement)
+
+- **Файлы:**
+  - `apps/crm/services/contract_renderer.py` — рефакторинг: выделен `build_context_from_data()` (source-agnostic)
+  - `apps/integrations/services/bitrix24_contract_service.py` — новый: маппинг полей Bitrix24 → контекст договора, рендеринг PDF
+  - `apps/integrations/views.py` — добавлены `bitrix24_contract_form`, `bitrix24_contract_generate`
+  - `templates/bitrix24/contract_form.html` — новый: DaisyUI + Alpine.js + BX24 JS SDK форма договора
+  - `config/urls.py` — маршруты `/bitrix24/contract/`, `/bitrix24/contract/generate/`
+  - `config/settings.py` — 16 новых env-переменных `BITRIX24_CONTRACT_FIELD_*`
+  - `apps/integrations/tests/test_bitrix24_contract.py` — тесты (views, service, helpers)
+- **Что сделано:** Полная реализация генерации договоров для Bitrix24: iframe-форма в карточке сделки, предзаполнение из CRM, редактирование, генерация PDF через WeasyPrint, загрузка в файловое поле сделки, отправка по email. ContractRenderer рефакторинг для работы с любым источником данных.
+- **Валидация:** Синтаксис всех файлов OK. Тесты написаны (не запущены — Docker не доступен).
+- **Риски:** Требуется настроить `BITRIX24_CONTRACT_FIELD_*` в `.env`. Регистрация placement в manifest приложения Bitrix24.
+
+---
+
 ### 2026-05-13 — Упрощение деплоя: единый docker-compose.yml + traefik (v0.2.1-dev)
 
 - **Файлы:**

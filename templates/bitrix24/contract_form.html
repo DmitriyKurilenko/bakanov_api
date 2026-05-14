@@ -1,0 +1,342 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="ru" data-theme="light">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Создание договора</title>
+  <script src="{% static 'vendor/tailwindcdn.js' %}"></script>
+  <link href="{% static 'vendor/daisyui.full.min.css' %}" rel="stylesheet" type="text/css" />
+  <script defer src="{% static 'vendor/alpine.min.js' %}"></script>
+  <script src="//api.bitrix24.com/api/v1/"></script>
+  <style>
+    [x-cloak] { display: none !important; }
+  </style>
+</head>
+<body class="min-h-screen bg-base-200 text-base-content p-4">
+
+  <div x-data="contractApp()" x-init="init()" x-cloak>
+    <!-- Header -->
+    <div class="navbar bg-base-100 rounded-box shadow mb-4 min-h-12 px-4">
+      <div class="flex-1">
+        <span class="text-lg font-semibold">Создание договора</span>
+      </div>
+      <div class="flex-none">
+        <span class="badge badge-ghost" x-text="'Сделка #' + dealId" x-show="dealId"></span>
+      </div>
+    </div>
+
+    <!-- Loading state -->
+    <div x-show="loading" class="flex justify-center py-8">
+      <span class="loading loading-spinner loading-lg"></span>
+    </div>
+
+    <!-- Error -->
+    <div x-show="error" class="alert alert-error mb-4">
+      <span x-text="error"></span>
+    </div>
+
+    <!-- Form -->
+    <div x-show="!loading && !error" class="space-y-4">
+
+      <!-- Deal info -->
+      <div class="card bg-base-100 shadow">
+        <div class="card-body p-4">
+          <h2 class="card-title text-sm" x-text="dealTitle ? 'Сделка: ' + dealTitle : 'Данные сделки'"></h2>
+        </div>
+      </div>
+
+      <!-- Cruise data -->
+      <div class="collapse collapse-arrow bg-base-100 shadow">
+        <input type="checkbox" checked>
+        <div class="collapse-title text-sm font-semibold">Данные круиза</div>
+        <div class="collapse-content space-y-3">
+          <div class="form-control">
+            <label class="label"><span class="label-text text-xs">Марина</span></label>
+            <select x-model="form.marina" class="select select-bordered select-sm">
+              <option value="">— Выберите —</option>
+              <option value="Турция">Турция</option>
+              <option value="Сейшелы">Сейшелы</option>
+              <option value="Таиланд">Таиланд</option>
+              <option value="Черногория">Черногория</option>
+            </select>
+          </div>
+          <div class="grid grid-cols-2 gap-3">
+            <div class="form-control">
+              <label class="label"><span class="label-text text-xs">Тип яхты</span></label>
+              <input type="text" x-model="form.boat_type" class="input input-bordered input-sm">
+            </div>
+            <div class="form-control">
+              <label class="label"><span class="label-text text-xs">Кают</span></label>
+              <input type="number" x-model="form.cabins" class="input input-bordered input-sm">
+            </div>
+          </div>
+          <div class="grid grid-cols-2 gap-3">
+            <div class="form-control">
+              <label class="label"><span class="label-text text-xs">Гостей</span></label>
+              <input type="number" x-model="form.clients" class="input input-bordered input-sm">
+            </div>
+            <div class="form-control">
+              <label class="label"><span class="label-text text-xs">Страна клиента</span></label>
+              <input type="text" x-model="form.client_country" class="input input-bordered input-sm">
+            </div>
+          </div>
+          <div class="grid grid-cols-2 gap-3">
+            <div class="form-control">
+              <label class="label"><span class="label-text text-xs">Дата начала</span></label>
+              <input type="text" x-model="form.trip_start" placeholder="дд.мм.гггг" class="input input-bordered input-sm">
+            </div>
+            <div class="form-control">
+              <label class="label"><span class="label-text text-xs">Дата окончания</span></label>
+              <input type="text" x-model="form.trip_end" placeholder="дд.мм.гггг" class="input input-bordered input-sm">
+            </div>
+          </div>
+          <div class="form-control">
+            <label class="label"><span class="label-text text-xs">Вид договора</span></label>
+            <select x-model="form.cruise_type" class="select select-bordered select-sm">
+              <option value="">— Выберите —</option>
+              <option value="Индивидуальный">Индивидуальный</option>
+              <option value="Групповой">Групповой</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <!-- Client data -->
+      <div class="collapse collapse-arrow bg-base-100 shadow">
+        <input type="checkbox" checked>
+        <div class="collapse-title text-sm font-semibold">Данные клиента</div>
+        <div class="collapse-content space-y-3">
+          <div class="form-control">
+            <label class="label"><span class="label-text text-xs">ФИО</span></label>
+            <input type="text" x-model="form.client_fullname" class="input input-bordered input-sm">
+          </div>
+          <div class="grid grid-cols-2 gap-3">
+            <div class="form-control">
+              <label class="label"><span class="label-text text-xs">Email</span></label>
+              <input type="email" x-model="form.email" class="input input-bordered input-sm">
+            </div>
+            <div class="form-control">
+              <label class="label"><span class="label-text text-xs">Телефон</span></label>
+              <input type="tel" x-model="form.phone" class="input input-bordered input-sm">
+            </div>
+          </div>
+          <div class="form-control">
+            <label class="label"><span class="label-text text-xs">Дата рождения</span></label>
+            <input type="text" x-model="form.client_bdate" placeholder="дд.мм.гггг" class="input input-bordered input-sm">
+          </div>
+          <div class="grid grid-cols-2 gap-3">
+            <div class="form-control">
+              <label class="label"><span class="label-text text-xs">Паспорт серия/номер</span></label>
+              <input type="text" x-model="form.client_passport_number" class="input input-bordered input-sm">
+            </div>
+            <div class="form-control">
+              <label class="label"><span class="label-text text-xs">Дата выдачи</span></label>
+              <input type="text" x-model="form.client_passport_date" placeholder="дд.мм.гггг" class="input input-bordered input-sm">
+            </div>
+          </div>
+          <div class="form-control">
+            <label class="label"><span class="label-text text-xs">Кем выдан</span></label>
+            <input type="text" x-model="form.client_passport_text" class="input input-bordered input-sm">
+          </div>
+          <div class="form-control">
+            <label class="label"><span class="label-text text-xs">Место рождения</span></label>
+            <input type="text" x-model="form.client_passport_bplace" class="input input-bordered input-sm">
+          </div>
+        </div>
+      </div>
+
+      <!-- Finance -->
+      <div class="collapse collapse-arrow bg-base-100 shadow">
+        <input type="checkbox">
+        <div class="collapse-title text-sm font-semibold">Финансы</div>
+        <div class="collapse-content space-y-3">
+          <div class="grid grid-cols-2 gap-3">
+            <div class="form-control">
+              <label class="label"><span class="label-text text-xs">Сумма (EUR)</span></label>
+              <input type="number" x-model="form.price_eur" class="input input-bordered input-sm">
+            </div>
+            <div class="form-control">
+              <label class="label"><span class="label-text text-xs">Курс EUR/RUB</span></label>
+              <input type="number" x-model="form.eur_rate" step="0.01" class="input input-bordered input-sm">
+            </div>
+          </div>
+          <div class="form-control">
+            <label class="label"><span class="label-text text-xs">Налоги и сборы (EUR)</span></label>
+            <input type="text" x-model="form.tax_value" class="input input-bordered input-sm">
+          </div>
+          <div class="form-control">
+            <label class="label"><span class="label-text text-xs">Доп. услуги (по одному на строку)</span></label>
+            <textarea x-model="form.extra_text" class="textarea textarea-bordered textarea-sm" rows="3" placeholder="- Трансфер&#10;- Экскурсия"></textarea>
+          </div>
+        </div>
+      </div>
+
+      <!-- Generate button -->
+      <div class="card bg-base-100 shadow">
+        <div class="card-body p-4">
+          <button
+            class="btn btn-primary w-full"
+            :class="{ 'loading': generating }"
+            :disabled="generating"
+            @click="generate()"
+          >
+            <span x-show="!generating">Сформировать договор</span>
+            <span x-show="generating">Генерация…</span>
+          </button>
+
+          <!-- Result -->
+          <div x-show="result" class="mt-3">
+            <div x-show="result?.status === 'ok'" class="alert alert-success">
+              <svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-5 w-5" fill="none" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+              <span>Договор создан!</span>
+            </div>
+            <div x-show="result?.status === 'warning'" class="alert alert-warning">
+              <svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-5 w-5" fill="none" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" /></svg>
+              <span>Договор создан с предупреждениями</span>
+            </div>
+            <div x-show="result?.status === 'error'" class="alert alert-error">
+              <span x-text="result?.detail || 'Ошибка генерации'"></span>
+            </div>
+
+            <div x-show="result?.file_url" class="mt-2 text-center">
+              <a :href="result.file_url" target="_blank" class="btn btn-sm btn-outline gap-1">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                Скачать PDF
+              </a>
+            </div>
+
+            <div x-show="result?.warnings?.length" class="mt-2">
+              <ul class="text-xs text-warning">
+                <template x-for="w in result.warnings">
+                  <li x-text="w"></li>
+                </template>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function contractApp() {
+      return {
+        domain: '{{ domain }}',
+        memberId: '{{ member_id }}',
+        dealId: null,
+        dealTitle: '',
+        loading: true,
+        generating: false,
+        error: null,
+        result: null,
+
+        form: {
+          marina: '',
+          boat_type: '',
+          cabins: '',
+          clients: '',
+          client_country: '',
+          trip_start: '',
+          trip_end: '',
+          cruise_type: '',
+          client_fullname: '',
+          email: '',
+          phone: '',
+          client_bdate: '',
+          client_passport_number: '',
+          client_passport_date: '',
+          client_passport_text: '',
+          client_passport_bplace: '',
+          price_eur: '',
+          eur_rate: '',
+          tax_value: '',
+          extra_text: '',
+        },
+
+        init() {
+          BX24.init(() => {
+            BX24.resizeWindow(700, 900);
+            this.loadPlacementData();
+          });
+        },
+
+        loadPlacementData() {
+          const placement = BX24.placement.info();
+          if (placement && placement.options && placement.options.ID) {
+            this.dealId = placement.options.ID;
+          } else {
+            this.error = 'Не удалось определить сделку. Откройте приложение из карточки сделки.';
+            this.loading = false;
+            return;
+          }
+
+          const batch = {
+            deal: ['crm.deal.get', { ID: this.dealId }],
+          };
+
+          BX24.callBatch(batch, (result) => {
+            const dealData = result.deal.data();
+            if (!dealData) {
+              this.error = 'Сделка не найдена';
+              this.loading = false;
+              return;
+            }
+
+            this.dealTitle = dealData.TITLE || '';
+            this.form.price_eur = dealData.OPPORTUNITY || '';
+
+            // Load contact if linked
+            const contactId = dealData.CONTACT_ID;
+            if (contactId) {
+              BX24.callMethod('crm.contact.get', { ID: contactId }, (res) => {
+                const contact = res.data();
+                if (contact) {
+                  this.form.client_fullname = [contact.LAST_NAME, contact.NAME, contact.SECOND_NAME].filter(Boolean).join(' ');
+                  if (contact.EMAIL && contact.EMAIL.length) {
+                    this.form.email = contact.EMAIL[0].VALUE || '';
+                  }
+                  if (contact.PHONE && contact.PHONE.length) {
+                    this.form.phone = contact.PHONE[0].VALUE || '';
+                  }
+                }
+                this.loading = false;
+              });
+            } else {
+              this.loading = false;
+            }
+          });
+        },
+
+        async generate() {
+          this.generating = true;
+          this.result = null;
+
+          const payload = {
+            member_id: this.memberId,
+            deal_id: parseInt(this.dealId),
+            overrides: {
+              ...this.form,
+              extra_items: this.form.extra_text ? this.form.extra_text.split('\n').map(s => s.replace(/^-\s*/, '').trim()).filter(Boolean) : [],
+            },
+            email_to: this.form.email || null,
+          };
+
+          try {
+            const response = await fetch('/bitrix24/contract/generate/', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(payload),
+            });
+            this.result = await response.json();
+          } catch (err) {
+            this.result = { status: 'error', detail: err.message };
+          } finally {
+            this.generating = false;
+          }
+        },
+      };
+    }
+  </script>
+</body>
+</html>

@@ -20,6 +20,8 @@
 | 4 | Битрикс24 — встроенное приложение (iframe) | done | OAuth, model, views, templates, 16 тестов |
 | 5 | Создание полной документации проекта | done | docs/PROJECT_OVERVIEW.md |
 | 6 | Bitrix24 — фильтр спам-заявок (аналог amoCRM) | done | Сервис, endpoint, Celery, логирование, 22 теста |
+| 7 | Bitrix24 spam lead: автозагрузка при статусе СПАМ | done | Автотриггер на ONCRMLEADUPDATE, BITRIX24_SPAM_STATUS_ID |
+| 8 | Bitrix24 — генерация договоров (iframe placement) | in-progress | Сервис, views, шаблон, тесты. Осталось: manifest placement |
 
 ---
 

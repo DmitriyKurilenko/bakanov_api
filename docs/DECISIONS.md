@@ -106,3 +106,19 @@
 - Отдельный endpoint `/webhooks/bitrix24/spam-lead` сохранён для ручной/тестовой загрузки.
 
 **Последствия:** Требуется настроить `BITRIX24_SPAM_STATUS_ID` в `.env` под реальный этап в Bitrix24.
+
+---
+
+## DEC-008: Генерация договоров в Bitrix24 (2026-05-14)
+
+**Контекст:** В amoCRM уже работает генерация PDF-договоров. Нужно перенести функционал в Bitrix24 с улучшенным UX — через iframe-приложение с формой редактирования.
+
+**Решение:**
+- Рефакторинг `ContractRenderer`: выделен `build_context_from_data(data: dict)` — source-agnostic метод, принимающий нормализованный словарь.
+- `Bitrix24ContractService` — маппит поля Bitrix24 (`UF_CRM_*`) в формат контекста договора.
+- View `bitrix24_contract_form` — рендерит iframe-форму (placement `CRM_DEAL_DETAIL_TAB`).
+- View `bitrix24_contract_generate` — API endpoint для генерации PDF + загрузка в сделку + email.
+- Шаблон `bitrix24/contract_form.html` — DaisyUI + Alpine.js + BX24 JS SDK.
+- Маппинг полей через env-переменные (`BITRIX24_CONTRACT_FIELD_*`).
+
+**Последствия:** Требуется настроить `BITRIX24_CONTRACT_FIELD_*` в `.env` под реальные UF_CRM_* коды портала. Регистрация placement в manifest приложения.

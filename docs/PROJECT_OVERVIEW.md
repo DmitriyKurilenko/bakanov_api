@@ -1,6 +1,6 @@
 # Bakanov API — Полная документация проекта
 
-> Документ актуален на момент создания (2026-04-13). При изменении архитектуры обновляйте этот файл.
+> Документ актуален на 2026-05-14. При изменении архитектуры обновляйте этот файл.
 
 ---
 
@@ -89,16 +89,22 @@
 | Сервис | Файл | Назначение |
 |--------|------|-----------|
 | `AmoCRMClient` | `services/amocrm.py` | HTTP-клиент для amoCRM API v4 (leads, contacts, companies, pipelines, upload файлов) |
-| `ContractRenderer` | `services/contract_renderer.py` | Генерация PDF-договоров из HTML-шаблонов с данными из amoCRM |
+| `ContractRenderer` | `services/contract_renderer.py` | Генерация PDF-договоров из HTML-шаблонов. Имеет source-agnostic метод `build_context_from_data(data)` для работы с любым источником данных (amoCRM, Bitrix24, ручной ввод) |
 | `DealAssignmentService` | `services/manager_assignment.py` | Автоматическое распределение новых лидов по менеджерам с учетом нагрузки и графика |
 | `AmoManagerSyncService` | `services/manager_assignment.py` | Синхронизация списка менеджеров из amoCRM |
 
-**Генерация договоров:**
+**Генерация договоров (amoCRM):**
 - Берет данные из amoCRM (lead, contact, company)
-- Заполняет HTML-шаблон (`contracts/contract.html` или `contracts/contract_u.html` для юрлиц)
+- Маппит поля amoCRM → нормализованный словарь → `build_context_from_data()`
 - Рендерит в PDF через WeasyPrint
 - Загружает файл обратно в amoCRM (поле `CONTRACT_FILE_FIELD_ID`)
 - Отправляет PDF по email
+
+**Генерация договоров (Bitrix24):**
+- Данные подтягиваются из сделки/контакта через BX24 JS SDK (клиентская сторона)
+- Менеджер редактирует поля в iframe-форме перед генерацией
+- POST на сервер → `Bitrix24ContractService.render_contract()` → PDF
+- PDF загружается в файловое поле сделки Bitrix24, отправляется по email
 
 **Распределение лидов:**
 1. Синхронизация менеджеров (`sync_amo_managers`)
@@ -161,6 +167,7 @@
 | `AmoCrmSpamLeadSyncService` | `amocrm_spam_lead_service.py` | Загрузка `client_id` спам-лидов в Яндекс.Метрику (offline conversions) |
 | `Bitrix24SpamLeadSyncService` | `bitrix24_spam_lead_service.py` | Загрузка `client_id` спам-лидов/сделок Bitrix24 в Яндекс.Метрику |
 | `Bitrix24Client` | `bitrix24_service.py` | REST API клиент Bitrix24 (outgoing webhooks / OAuth) |
+| `Bitrix24ContractService` | `bitrix24_contract_service.py` | Генерация договоров из данных Bitrix24: маппинг UF_CRM_* полей, рендеринг PDF, загрузка в сделку |
 | `Bitrix24WebhookProcessor` | `bitrix24_webhook_handler.py` | Обработчик входящих webhook-ов Bitrix24 |
 | `Bitrix24OAuthService` | `bitrix24_oauth.py` | OAuth-авторизация и обновление токенов Bitrix24 |
 | `EmailService` | `email_service.py` | Отправка email (договоры, отчеты) |
@@ -204,7 +211,16 @@
 | `/webhooks/bitrix24/spam-lead` | POST | Спам-лид/сделка из Bitrix24 → загрузка client_id в Метрику |
 | `/amocrm/oauth/callback` | GET | Callback для OAuth amoCRM |
 
-### 5.3 Системные
+### 5.3 Bitrix24 iframe-приложения
+
+| Endpoint | Метод | Описание |
+|----------|-------|----------|
+| `/bitrix24/install/` | POST | Callback установки локального приложения |
+| `/bitrix24/app/` | POST | Основное приложение (дашборд, статистика CRM) |
+| `/bitrix24/contract/` | POST | Форма создания договора (placement в карточке сделки) |
+| `/bitrix24/contract/generate/` | POST | API генерации PDF договора (JSON) |
+
+### 5.4 Системные
 
 | Endpoint | Метод | Описание |
 |----------|-------|----------|
@@ -294,6 +310,25 @@ Bitrix24 → install → POST /bitrix24/install/ (BX24.installFinish)
 Bitrix24 → iframe → POST /bitrix24/app/ (OAuth, UI DaisyUI)
 ```
 
+**Генерация договора (Bitrix24):**
+```
+Bitrix24 → placement (CRM_DEAL_DETAIL_TAB) → POST /bitrix24/contract/
+  → рендерит форму (DaisyUI + Alpine.js + BX24 JS SDK)
+  → BX24.callBatch: crm.deal.get + crm.contact.get
+  → автозаполнение полей формы
+
+Менеджер редактирует → нажимает "Сформировать"
+  → POST /bitrix24/contract/generate/ (JSON: member_id, deal_id, overrides)
+    → Bitrix24ContractService.from_portal(portal)
+    → render_contract(deal_id, overrides)
+      → get_deal_data + get_contact_data + get_company_data
+      → build_context_from_deal() → build_context_from_data()
+      → WeasyPrint → PDF
+    → crm.deal.update (загрузка PDF в файловое поле)
+    → send_contract_email()
+  → JSON response {status, file_url}
+```
+
 ---
 
 ## 8. Переменные окружения (.env)
@@ -328,6 +363,27 @@ Bitrix24 → iframe → POST /bitrix24/app/ (OAuth, UI DaisyUI)
 | `BITRIX24_APP_SECRET` | Секрет приложения Bitrix24 |
 | `BITRIX24_SPAM_CLIENT_ID_FIELD_CODES` | Коды UF_CRM_ полей с client_id (через запятую) |
 | `BITRIX24_SPAM_CLIENT_ID_FIELD_NAMES` | Названия полей с client_id (через запятую) |
+
+### Bitrix24 — маппинг полей договоров
+
+| Переменная | Описание |
+|-----------|----------|
+| `BITRIX24_CONTRACT_FIELD_MARINA` | UF_CRM_ код поля "Марина" в сделке |
+| `BITRIX24_CONTRACT_FIELD_BOAT_TYPE` | UF_CRM_ код поля "Тип яхты" |
+| `BITRIX24_CONTRACT_FIELD_CABINS` | UF_CRM_ код поля "Количество кают" |
+| `BITRIX24_CONTRACT_FIELD_CLIENTS` | UF_CRM_ код поля "Количество человек" |
+| `BITRIX24_CONTRACT_FIELD_CLIENT_COUNTRY` | UF_CRM_ код поля "Страна клиента" |
+| `BITRIX24_CONTRACT_FIELD_TRIP_START` | UF_CRM_ код поля "Дата начала круиза" |
+| `BITRIX24_CONTRACT_FIELD_TRIP_END` | UF_CRM_ код поля "Дата окончания круиза" |
+| `BITRIX24_CONTRACT_FIELD_CRUISE_TYPE` | UF_CRM_ код поля "Вид договора" |
+| `BITRIX24_CONTRACT_FIELD_EXTRA` | UF_CRM_ код поля "Доп. услуги" |
+| `BITRIX24_CONTRACT_FIELD_TAX` | UF_CRM_ код поля "Налоги и сборы" |
+| `BITRIX24_CONTRACT_FILE_FIELD_ID` | UF_CRM_ код файлового поля для загрузки PDF |
+| `BITRIX24_CONTRACT_FIELD_BIRTHDATE` | UF_CRM_ код поля "Дата рождения" в контакте |
+| `BITRIX24_CONTRACT_FIELD_PASSPORT_NUMBER` | UF_CRM_ код поля "Паспорт номер" |
+| `BITRIX24_CONTRACT_FIELD_PASSPORT_DATE` | UF_CRM_ код поля "Паспорт дата выдачи" |
+| `BITRIX24_CONTRACT_FIELD_PASSPORT_ISSUED` | UF_CRM_ код поля "Паспорт кем выдан" |
+| `BITRIX24_CONTRACT_FIELD_PASSPORT_BPLACE` | UF_CRM_ код поля "Место рождения" |
 
 ### Телефония и AI
 
@@ -405,6 +461,7 @@ docker compose run --rm web python manage.py test apps.integrations.tests.test_b
 **Покрытие (на момент документации):**
 - Bitrix24: 34 теста (service, webhook API, webhook handler)
 - Bitrix24 iframe: 16 тестов (OAuth, views)
+- Bitrix24 contract: тесты (views, service, helpers)
 
 ---
 

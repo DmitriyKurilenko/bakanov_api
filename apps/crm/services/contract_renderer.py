@@ -313,33 +313,46 @@ class ContractRenderer:
             return {}
         return self.amocrm.get_company(int(company_id))
 
-    def _build_context(self, lead: dict, contact: dict, company: dict | None = None) -> dict:
-        custom_fields = lead.get("custom_fields_values") or []
-        contact_fields = contact.get("custom_fields_values") or []
-        company_fields = (company or {}).get("custom_fields_values") or []
+    @staticmethod
+    def build_context_from_data(data: dict) -> dict:
+        """Build template context from a normalized data dict.
 
-        marina = _get_custom_field_value(custom_fields, field_name="Марина") or ""
-        destination, destination_flight, nalog = _build_destination(str(marina))
+        This method is source-agnostic — it works with data from amoCRM,
+        Bitrix24, or any other source. The caller is responsible for
+        mapping source-specific fields into the expected format.
 
-        price_eur = float(lead.get("price") or 0)
-        eur_rate = float(getattr(settings, "CONTRACT_EUR_RATE", 100.0))
-        currency_percent_raw = _get_custom_field_value(custom_fields, field_id=1076365)
-        if currency_percent_raw not in (None, ""):
-            try:
-                eur_rate = round(eur_rate + (eur_rate * (float(currency_percent_raw) / 100)), 4)
-            except (TypeError, ValueError):
-                pass
-        price_rub = int(float(price_eur) * eur_rate)
+        Expected keys in *data*:
+            number (int), price_eur (float), eur_rate (float),
+            marina (str), boat_type (str), cabins (str|None),
+            clients (str|None), client_country (str),
+            trip_start (str dd.mm.YYYY), trip_end (str dd.mm.YYYY),
+            cruise_type (str), client_fullname (str),
+            email (str), phone (str), client_bdate (str dd.mm.YYYY),
+            client_passport_number (str), client_passport_date (str),
+            client_passport_text (str), client_passport_bplace (str),
+            payment_values (list[str]), extra_items (list[str]),
+            tax_value (str|None),
+            payment_parts (list[dict]|None) — pre-calculated parts,
+            is_legal_entity (bool), company_fullname (str),
+            company_address (str), company_account (str),
+            company_currency (str), company_inn (str),
+            company_kpp (str), company_bik (str),
+            company_bank (str), company_korr (str),
+        """
+        marina = str(data.get("marina") or "")
+        destination, destination_flight, nalog = _build_destination(marina)
 
-        date_start_unix = _get_custom_field_value(custom_fields, field_name="Дата круиза")
-        date_end_unix = _get_custom_field_value(custom_fields, field_id=1055427)
-        trip_start = _format_unix_date(date_start_unix)
-        trip_end = _format_unix_date(date_end_unix)
+        price_eur = float(data.get("price_eur") or 0)
+        eur_rate = float(data.get("eur_rate") or getattr(settings, "CONTRACT_EUR_RATE", 100.0))
+        price_rub = int(price_eur * eur_rate)
+
+        trip_start = data.get("trip_start") or ""
+        trip_end = data.get("trip_end") or ""
         if not trip_end and trip_start:
             start = datetime.strptime(trip_start, "%d.%m.%Y")
             trip_end = (start + timedelta(days=7)).strftime("%d.%m.%Y")
 
-        clients_raw = _get_custom_field_value(custom_fields, field_name="Количество человек")
+        clients_raw = data.get("clients")
         clients_text = ""
         if clients_raw is not None:
             clients_str = str(clients_raw)
@@ -348,25 +361,20 @@ class ContractRenderer:
             else:
                 clients_text = f"{clients_str} человек"
 
-        client_fullname = contact.get("name") or ""
-        cruise_type = _get_custom_field_value(custom_fields, field_name="Вид договора") or ""
+        cruise_type = str(data.get("cruise_type") or "")
 
-        payment_values = _get_custom_field_values(custom_fields, field_id=1054105)
+        payment_values = data.get("payment_values") or []
         payment_lines = [PAYMENT_DETAILS.get(str(value), str(value)) for value in payment_values]
         payment = [line for line in payment_lines if line]
 
-        extra_include = []
-        extra_include.extend([str(v) for v in _get_custom_field_values(custom_fields, field_id=1055020)])
-        extra_include.extend([str(v) for v in _get_custom_field_values(custom_fields, field_id=1055897)])
-        extra_text = ""
-        if extra_include:
-            extra_text = "\n".join(f"- {item}" for item in extra_include)
+        extra_items = data.get("extra_items") or []
+        extra_text = "\n".join(f"- {item}" for item in extra_items) if extra_items else ""
 
-        tax_value = _get_custom_field_value(custom_fields, field_id=1076917)
+        tax_value = data.get("tax_value")
         if tax_value not in (None, ""):
             nalog = f"Налоги и сборы в размере {tax_value} евро."
 
-        if cruise_type == "Групповой" or extra_include:
+        if cruise_type == "Групповой" or extra_items:
             part13 = (
                 "1.3. Поставщиками услуг, оказывающими Заказчику услуги, являются "
                 "непосредственные исполнители (яхтенные компании и уполномоченные лица)."
@@ -374,15 +382,19 @@ class ContractRenderer:
         else:
             part13 = ""
 
-        parts = _calculate_payment_parts(custom_fields, price_eur, eur_rate)
+        custom_fields_for_parts = data.get("_custom_fields_for_parts")
+        if custom_fields_for_parts is not None:
+            parts = _calculate_payment_parts(custom_fields_for_parts, price_eur, eur_rate)
+        else:
+            parts = data.get("payment_parts") or _calculate_payment_parts([], price_eur, eur_rate)
 
-        context = {
-            "number": lead.get("id", ""),
+        return {
+            "number": data.get("number", ""),
             "contract_date": datetime.now().strftime("%d.%m.%Y"),
-            "boat_type": _get_custom_field_value(custom_fields, field_name="Тип яхты") or "",
-            "cabins": _get_custom_field_value(custom_fields, field_name="Количество кают") or "",
-            "client_country": _get_custom_field_value(custom_fields, field_name="Страна клиента") or "",
-            "client_fullname": client_fullname,
+            "boat_type": data.get("boat_type") or "",
+            "cabins": data.get("cabins") or "",
+            "client_country": data.get("client_country") or "",
+            "client_fullname": data.get("client_fullname") or "",
             "clients": clients_text,
             "destination": destination,
             "destination_flight": destination_flight,
@@ -394,6 +406,71 @@ class ContractRenderer:
             "price_text": _amount_to_words(price_eur, "EUR"),
             "price_rub": _format_amount(price_rub),
             "price_rub_text": _amount_to_words(price_rub, "RUB"),
+            "email": data.get("email") or "",
+            "phone": data.get("phone") or "",
+            "client_bdate": data.get("client_bdate") or "",
+            "client_passport_number": data.get("client_passport_number") or "",
+            "client_passport_date": data.get("client_passport_date") or "",
+            "client_passport_text": data.get("client_passport_text") or "",
+            "client_passport_bplace": data.get("client_passport_bplace") or "",
+            "nalog": nalog,
+            "part13": part13,
+            "p": "",
+            "checkIn": "16:00",
+            "checkOut": "09:00",
+            "part": parts,
+            "payment": payment,
+            "payment_parts": parts,
+            "is_legal_entity": bool(data.get("is_legal_entity")),
+            "company_fullname": data.get("company_fullname") or "",
+            "company_address": data.get("company_address") or "",
+            "company_account": data.get("company_account") or "",
+            "company_currency": data.get("company_currency") or "",
+            "company_inn": data.get("company_inn") or "",
+            "company_kpp": data.get("company_kpp") or "",
+            "company_bik": data.get("company_bik") or "",
+            "company_bank": data.get("company_bank") or "",
+            "company_korr": data.get("company_korr") or "",
+        }
+
+    def _build_context(self, lead: dict, contact: dict, company: dict | None = None) -> dict:
+        """Build context from amoCRM data. Maps amoCRM fields → normalized data → template context."""
+        custom_fields = lead.get("custom_fields_values") or []
+        contact_fields = contact.get("custom_fields_values") or []
+        company_fields = (company or {}).get("custom_fields_values") or []
+
+        marina = _get_custom_field_value(custom_fields, field_name="Марина") or ""
+
+        price_eur = float(lead.get("price") or 0)
+        eur_rate = float(getattr(settings, "CONTRACT_EUR_RATE", 100.0))
+        currency_percent_raw = _get_custom_field_value(custom_fields, field_id=1076365)
+        if currency_percent_raw not in (None, ""):
+            try:
+                eur_rate = round(eur_rate + (eur_rate * (float(currency_percent_raw) / 100)), 4)
+            except (TypeError, ValueError):
+                pass
+
+        date_start_unix = _get_custom_field_value(custom_fields, field_name="Дата круиза")
+        date_end_unix = _get_custom_field_value(custom_fields, field_id=1055427)
+
+        payment_values = _get_custom_field_values(custom_fields, field_id=1054105)
+        extra_items = []
+        extra_items.extend([str(v) for v in _get_custom_field_values(custom_fields, field_id=1055020)])
+        extra_items.extend([str(v) for v in _get_custom_field_values(custom_fields, field_id=1055897)])
+
+        data = {
+            "number": lead.get("id", ""),
+            "price_eur": price_eur,
+            "eur_rate": eur_rate,
+            "marina": marina,
+            "boat_type": _get_custom_field_value(custom_fields, field_name="Тип яхты") or "",
+            "cabins": _get_custom_field_value(custom_fields, field_name="Количество кают") or "",
+            "clients": _get_custom_field_value(custom_fields, field_name="Количество человек"),
+            "client_country": _get_custom_field_value(custom_fields, field_name="Страна клиента") or "",
+            "trip_start": _format_unix_date(date_start_unix),
+            "trip_end": _format_unix_date(date_end_unix),
+            "cruise_type": _get_custom_field_value(custom_fields, field_name="Вид договора") or "",
+            "client_fullname": contact.get("name") or "",
             "email": _get_custom_field_value(contact_fields, field_name="Email") or "",
             "phone": _get_custom_field_value(contact_fields, field_name="Телефон")
             or _get_custom_field_value(contact_fields, field_code="PHONE")
@@ -403,14 +480,10 @@ class ContractRenderer:
             "client_passport_date": _format_unix_date(_get_custom_field_value(contact_fields, field_name="Паспорт дата")),
             "client_passport_text": _get_custom_field_value(contact_fields, field_name="Паспорт кем выдан") or "",
             "client_passport_bplace": _get_custom_field_value(contact_fields, field_name="Паспорт место рождения") or "",
-            "nalog": nalog,
-            "part13": part13,
-            "p": "",
-            "checkIn": "16:00",
-            "checkOut": "09:00",
-            "part": parts,
-            "payment": payment,
-            "payment_parts": parts,
+            "payment_values": payment_values,
+            "extra_items": extra_items,
+            "tax_value": _get_custom_field_value(custom_fields, field_id=1076917),
+            "_custom_fields_for_parts": custom_fields,
             "is_legal_entity": bool(company),
             "company_fullname": (company or {}).get("name") or "",
             "company_address": _get_custom_field_value(company_fields, field_name="Адрес") or "",
@@ -423,7 +496,7 @@ class ContractRenderer:
             "company_korr": _get_custom_field_value(company_fields, field_name="Корр счет") or "",
         }
 
-        return context
+        return self.build_context_from_data(data)
 
     def _build_extra_agreement_context(self, lead: dict, contact: dict) -> dict:
         custom_fields = lead.get("custom_fields_values") or []
