@@ -90,9 +90,32 @@ def process_bitrix24_webhook(event: str, entity_id: int) -> dict:
 )
 def process_bitrix24_spam_lead_webhook(entity_id: int, entity_type: str) -> dict:
     """Async processing of Bitrix24 spam lead — upload client_id to Metrica."""
+    from django_redis import get_redis_connection
+
     from apps.integrations.services.bitrix24_spam_lead_service import (
         Bitrix24SpamLeadSyncService,
     )
+
+    # Deduplicate: Bitrix24 may send the webhook twice
+    cache_key = f"bitrix24:spam:processed:{entity_type}:{entity_id}"
+    redis = get_redis_connection("default")
+    if redis.set(cache_key, "1", nx=True, ex=300):
+        # Key was set → first time, proceed
+        pass
+    else:
+        # Key already exists → duplicate, skip
+        logger.info(
+            "Bitrix24 spam webhook duplicate skipped: entity_type=%s entity_id=%s",
+            entity_type,
+            entity_id,
+        )
+        return {
+            "entity_id": entity_id,
+            "entity_type": entity_type,
+            "status": "skipped",
+            "detail": "Duplicate webhook",
+            "uploaded_client_ids": [],
+        }
 
     result = Bitrix24SpamLeadSyncService.from_settings().sync_entity(
         entity_id=int(entity_id),
