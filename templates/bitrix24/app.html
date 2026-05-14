@@ -344,7 +344,6 @@
         _loadDealsPage(start) {
           BX24.callMethod('crm.deal.list', {
             order: { ID: 'DESC' },
-            filter: { CLOSED: 'N' },
             select: ['ID', 'TITLE', 'OPPORTUNITY', 'STAGE_ID', 'CATEGORY_ID'],
             start: start,
           }, (r) => {
