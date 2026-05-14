@@ -45,7 +45,7 @@ def bitrix24_install(request: HttpRequest) -> HttpResponse:
     if portal:
         try:
             from apps.integrations.services.bitrix24_service import Bitrix24Client
-            client = Bitrix24Client.from_portal(portal)
+            client = Bitrix24Client.from_settings()
             client._call("placement.bind", {
                 "PLACEMENT": "CRM_DEAL_DETAIL_TAB",
                 "HANDLER": "https://kapitan.prvms.ru/bitrix24/contract/",
