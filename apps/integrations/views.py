@@ -36,10 +36,24 @@ def bitrix24_install(request: HttpRequest) -> HttpResponse:
         return render(request, "bitrix24/error.html", {"message": "Missing member_id"}, status=400)
 
     try:
-        save_portal_from_request(data)
+        portal = save_portal_from_request(data)
     except Exception:
         logger.exception("Bitrix24 install failed for member_id=%s", member_id)
         return render(request, "bitrix24/error.html", {"message": "Install error"}, status=500)
+
+    # Auto-register placement for contract form in deal detail tab
+    if portal:
+        try:
+            from apps.integrations.services.bitrix24_service import Bitrix24Client
+            client = Bitrix24Client.from_portal(portal)
+            client._call("placement.bind", {
+                "PLACEMENT": "CRM_DEAL_DETAIL_TAB",
+                "HANDLER": "https://kapitan.prvms.ru/bitrix24/contract/",
+                "TITLE": "Договор",
+            })
+            logger.info("Placement CRM_DEAL_DETAIL_TAB registered for member_id=%s", member_id)
+        except Exception:
+            logger.warning("Failed to register placement for member_id=%s", member_id, exc_info=True)
 
     return render(request, "bitrix24/install_success.html")
 
