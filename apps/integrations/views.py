@@ -91,33 +91,38 @@ def bitrix24_app(request: HttpRequest) -> HttpResponse:
 def bitrix24_contract_form(request: HttpRequest) -> HttpResponse:
     """Contract form rendered inside the Bitrix24 deal detail tab (placement).
 
-    Bitrix24 may send GET (initial load) or POST (with auth tokens).
+    Bitrix24 sends POST with placement params:
+    - PLACEMENT: e.g. "CRM_DEAL_DETAIL_TAB"
+    - PLACEMENT_ID: deal ID
+    - AUTH_ID, REFRESH_ID, etc.
     """
-    if request.method == "GET":
-        return render(request, "bitrix24/contract_form.html", {
-            "portal": None,
-            "domain": "",
-            "member_id": "",
-        })
-
-    if request.method != "POST":
-        return render(request, "bitrix24/error.html", {"message": "Method not allowed"}, status=405)
-
-    data = request.POST.dict()
+    data = request.POST.dict() if request.method == "POST" else request.GET.dict()
     member_id = data.get("member_id")
+    placement = data.get("PLACEMENT", "")
+    placement_id = data.get("PLACEMENT_ID", "")
+
     if not member_id:
+        logger.warning("Bitrix24 contract form: missing member_id")
         return render(request, "bitrix24/error.html", {"message": "Missing member_id"}, status=400)
 
     try:
         portal = Bitrix24Portal.objects.get(member_id=member_id, is_active=True)
     except Bitrix24Portal.DoesNotExist:
         logger.warning("Bitrix24 contract form: unknown portal member_id=%s", member_id)
-        return render(request, "bitrix24/error.html", {"message": "Портал не найден."}, status=404)
+        return render(request, "bitrix24/error.html", {"message": "Портал не найден. Переустановите приложение."}, status=404)
 
     auth_id = data.get("AUTH_ID", "")
     if auth_id:
         save_portal_from_request(data)
         portal.refresh_from_db()
+
+    return render(request, "bitrix24/contract_form.html", {
+        "portal": portal,
+        "domain": portal.domain,
+        "member_id": portal.member_id,
+        "placement": placement,
+        "deal_id": placement_id,
+    })
 
     return render(request, "bitrix24/contract_form.html", {
         "portal": portal,

@@ -5,9 +5,9 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Создание договора</title>
-  <script src="{% static 'vendor/tailwindcdn.js' %}"></script>
-  <link href="{% static 'vendor/daisyui.full.min.css' %}" rel="stylesheet" type="text/css" />
-  <script defer src="{% static 'vendor/alpine.min.js' %}"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://cdn.jsdelivr.net/npm/daisyui@4/dist/full.min.css" rel="stylesheet" type="text/css" />
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3/dist/cdn.min.js"></script>
   <script src="//api.bitrix24.com/api/v1/"></script>
   <style>
     [x-cloak] { display: none !important; }
@@ -224,7 +224,7 @@
       return {
         domain: '{{ domain }}',
         memberId: '{{ member_id }}',
-        dealId: null,
+        dealId: '{{ deal_id }}' || null,
         dealTitle: '',
         loading: true,
         generating: false,
@@ -262,10 +262,16 @@
         },
 
         loadPlacementData() {
-          const placement = BX24.placement.info();
-          if (placement && placement.options && placement.options.ID) {
-            this.dealId = placement.options.ID;
-          } else {
+          // Try to get dealId from Django context (placement params)
+          if (!this.dealId) {
+            // Fallback: try BX24 placement info
+            const placement = BX24.placement.info();
+            if (placement && placement.options && placement.options.ID) {
+              this.dealId = placement.options.ID;
+            }
+          }
+
+          if (!this.dealId) {
             this.error = 'Не удалось определить сделку. Откройте приложение из карточки сделки.';
             this.loading = false;
             return;
