@@ -25,46 +25,44 @@
       </div>
     </div>
 
-    <!-- Tabs -->
-    <div role="tablist" class="tabs tabs-boxed mb-4 bg-base-100">
-      <a role="tab" class="tab" :class="{'tab-active': tab==='deals'}" @click="tab='deals'">Сделки</a>
-      <a role="tab" class="tab" :class="{'tab-active': tab==='contract'}" @click="tab='contract'; loadDealsForContract()">Договор</a>
+    <!-- Back button when form open -->
+    <div x-show="selectedDealId" class="mb-4">
+      <button class="btn btn-ghost btn-sm gap-1" @click="selectedDealId=''; contractResult=null">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" /></svg>
+        Назад к списку
+      </button>
+      <span class="text-sm ml-2" x-text="'Сделка #' + selectedDealId + ' — ' + contractForm.deal_title"></span>
     </div>
 
-    <!-- TAB: Deals -->
-    <div x-show="tab==='deals'">
-      <!-- Quick CRM stats -->
-      <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
-        <template x-for="stat in stats" :key="stat.label">
-          <div class="card bg-base-100 shadow">
-            <div class="card-body p-3 items-center text-center">
-              <div class="text-2xl font-bold" x-text="stat.value"></div>
-              <div class="text-xs opacity-60" x-text="stat.label"></div>
-            </div>
-          </div>
-        </template>
-      </div>
-
-      <!-- Recent deals -->
+    <!-- Deals list (hidden when form open) -->
+    <div x-show="!selectedDealId">
       <div class="card bg-base-100 shadow">
         <div class="card-body p-4">
           <div class="flex items-center justify-between mb-2">
-            <h2 class="card-title text-sm">Последние сделки</h2>
+            <h2 class="card-title text-sm">Сделки</h2>
             <button class="btn btn-ghost btn-xs" @click="loadDeals()">⟳</button>
           </div>
-          <div x-show="deals.length === 0" class="text-sm opacity-50">Нет данных</div>
-          <div class="overflow-x-auto">
-            <table class="table table-xs" x-show="deals.length > 0">
+          <div x-show="loading" class="flex justify-center py-4">
+            <span class="loading loading-spinner loading-md"></span>
+          </div>
+          <div x-show="!loading && deals.length === 0" class="text-sm opacity-50">Нет сделок</div>
+          <div class="overflow-x-auto" x-show="!loading && deals.length > 0">
+            <table class="table table-xs">
               <thead>
-                <tr><th>ID</th><th>Название</th><th>Сумма</th><th>Статус</th></tr>
+                <tr><th>ID</th><th>Название</th><th>Сумма</th><th>Статус</th><th></th></tr>
               </thead>
               <tbody>
                 <template x-for="deal in deals" :key="deal.ID">
                   <tr>
                     <td x-text="deal.ID"></td>
                     <td x-text="deal.TITLE"></td>
-                    <td x-text="deal.OPPORTUNITY"></td>
+                    <td x-text="deal.OPPORTUNITY ? deal.OPPORTUNITY + ' EUR' : ''"></td>
                     <td><span class="badge badge-sm badge-ghost" x-text="deal.STAGE_ID"></span></td>
+                    <td>
+                      <button class="btn btn-primary btn-xs" @click="openContractForm(deal.ID)">
+                        Договор
+                      </button>
+                    </td>
                   </tr>
                 </template>
               </tbody>
@@ -74,33 +72,15 @@
       </div>
     </div>
 
-    <!-- TAB: Contract -->
-    <div x-show="tab==='contract'">
-      <!-- Select deal -->
-      <div class="card bg-base-100 shadow mb-4">
-        <div class="card-body p-4">
-          <h2 class="card-title text-sm">Выберите сделку</h2>
-          <div x-show="dealsForContract.length === 0" class="text-sm opacity-50">Загрузка сделок…</div>
-          <select class="select select-bordered select-sm w-full" x-model="selectedDealId" @change="onDealSelect()">
-            <option value="">— Выберите сделку —</option>
-            <template x-for="d in dealsForContract" :key="d.ID">
-              <option :value="d.ID" x-text="'#' + d.ID + ' — ' + d.TITLE + ' (' + (d.OPPORTUNITY||'0') + ' EUR)'"></option>
-            </template>
-          </select>
-        </div>
+    <!-- Contract form -->
+    <div x-show="selectedDealId">
+      <div x-show="contractLoading" class="flex justify-center py-8">
+        <span class="loading loading-spinner loading-lg"></span>
       </div>
 
-      <!-- Contract form (visible after deal selected) -->
-      <div x-show="selectedDealId && !contractLoading">
-        <!-- Deal info -->
-        <div class="card bg-base-100 shadow mb-4">
-          <div class="card-body p-4">
-            <h2 class="card-title text-sm" x-text="'Сделка: ' + contractForm.deal_title"></h2>
-          </div>
-        </div>
-
+      <div x-show="!contractLoading" class="space-y-3">
         <!-- Cruise data -->
-        <div class="collapse collapse-arrow bg-base-100 shadow mb-3">
+        <div class="collapse collapse-arrow bg-base-100 shadow">
           <input type="checkbox" checked>
           <div class="collapse-title text-sm font-semibold">Данные круиза</div>
           <div class="collapse-content space-y-3">
@@ -156,7 +136,7 @@
         </div>
 
         <!-- Client data -->
-        <div class="collapse collapse-arrow bg-base-100 shadow mb-3">
+        <div class="collapse collapse-arrow bg-base-100 shadow">
           <input type="checkbox" checked>
           <div class="collapse-title text-sm font-semibold">Данные клиента</div>
           <div class="collapse-content space-y-3">
@@ -200,7 +180,7 @@
         </div>
 
         <!-- Finance -->
-        <div class="collapse collapse-arrow bg-base-100 shadow mb-3">
+        <div class="collapse collapse-arrow bg-base-100 shadow">
           <input type="checkbox">
           <div class="collapse-title text-sm font-semibold">Финансы</div>
           <div class="collapse-content space-y-3">
@@ -254,11 +234,6 @@
           </div>
         </div>
       </div>
-
-      <!-- Loading -->
-      <div x-show="contractLoading" class="flex justify-center py-8">
-        <span class="loading loading-spinner loading-lg"></span>
-      </div>
     </div>
   </div>
 
@@ -268,10 +243,8 @@
         domain: '{{ domain }}',
         memberId: '{{ member_id }}',
         connected: false,
-        tab: 'deals',
-        stats: [],
+        loading: true,
         deals: [],
-        dealsForContract: [],
         selectedDealId: '',
         contractLoading: false,
         generating: false,
@@ -290,77 +263,68 @@
           BX24.init(() => {
             this.connected = true;
             BX24.resizeWindow(800, 900);
-            this.loadStats();
             this.loadDeals();
           });
         },
 
-        loadStats() {
-          BX24.callBatch({
-            leads: ['crm.lead.list', { filter: {}, start: -1 }],
-            deals: ['crm.deal.list', { filter: {}, start: -1 }],
-            contacts: ['crm.contact.list', { filter: {}, start: -1 }],
-            companies: ['crm.company.list', { filter: {}, start: -1 }],
-          }, (r) => {
-            this.stats = [
-              { label: 'Лиды', value: r.leads.answer.total || 0 },
-              { label: 'Сделки', value: r.deals.answer.total || 0 },
-              { label: 'Контакты', value: r.contacts.answer.total || 0 },
-              { label: 'Компании', value: r.companies.answer.total || 0 },
-            ];
-          });
-        },
-
         loadDeals() {
+          this.loading = true;
           BX24.callMethod('crm.deal.list', {
             order: { ID: 'DESC' },
             select: ['ID', 'TITLE', 'OPPORTUNITY', 'STAGE_ID'],
             start: 0,
           }, (r) => {
-            if (r.data()) this.deals = r.data().slice(0, 20);
+            this.deals = r.data() ? r.data().slice(0, 50) : [];
+            this.loading = false;
           });
         },
 
-        loadDealsForContract() {
-          if (this.dealsForContract.length > 0) return;
-          BX24.callMethod('crm.deal.list', {
-            order: { ID: 'DESC' },
-            select: ['ID', 'TITLE', 'OPPORTUNITY', 'CONTACT_ID'],
-            start: 0,
-          }, (r) => {
-            if (r.data()) this.dealsForContract = r.data().slice(0, 50);
-          });
-        },
-
-        onDealSelect() {
-          if (!this.selectedDealId) return;
+        openContractForm(dealId) {
+          this.selectedDealId = String(dealId);
           this.contractResult = null;
           this.contractLoading = true;
+          this.resetForm();
 
-          const deal = this.dealsForContract.find(d => String(d.ID) === String(this.selectedDealId));
-          if (!deal) { this.contractLoading = false; return; }
-
-          this.contractForm.deal_title = deal.TITLE || '';
-          this.contractForm.price_eur = deal.OPPORTUNITY || '';
-
-          const batch = { deal: ['crm.deal.get', { ID: this.selectedDealId }] };
-          if (deal.CONTACT_ID) {
-            batch.contact = ['crm.contact.get', { ID: deal.CONTACT_ID }];
+          const deal = this.deals.find(d => String(d.ID) === String(dealId));
+          if (deal) {
+            this.contractForm.deal_title = deal.TITLE || '';
+            this.contractForm.price_eur = deal.OPPORTUNITY || '';
           }
+
+          const batch = { deal: ['crm.deal.get', { ID: dealId }] };
 
           BX24.callBatch(batch, (r) => {
             const dealData = r.deal.data();
             if (dealData) {
               this.contractForm.price_eur = dealData.OPPORTUNITY || '';
+              if (dealData.CONTACT_ID) {
+                BX24.callMethod('crm.contact.get', { ID: dealData.CONTACT_ID }, (res) => {
+                  const c = res.data();
+                  if (c) {
+                    this.contractForm.client_fullname = [c.LAST_NAME, c.NAME, c.SECOND_NAME].filter(Boolean).join(' ');
+                    if (c.EMAIL && c.EMAIL.length) this.contractForm.email = c.EMAIL[0].VALUE || '';
+                    if (c.PHONE && c.PHONE.length) this.contractForm.phone = c.PHONE[0].VALUE || '';
+                  }
+                  this.contractLoading = false;
+                });
+              } else {
+                this.contractLoading = false;
+              }
+            } else {
+              this.contractLoading = false;
             }
-            if (r.contact && r.contact.data()) {
-              const c = r.contact.data();
-              this.contractForm.client_fullname = [c.LAST_NAME, c.NAME, c.SECOND_NAME].filter(Boolean).join(' ');
-              if (c.EMAIL && c.EMAIL.length) this.contractForm.email = c.EMAIL[0].VALUE || '';
-              if (c.PHONE && c.PHONE.length) this.contractForm.phone = c.PHONE[0].VALUE || '';
-            }
-            this.contractLoading = false;
           });
+        },
+
+        resetForm() {
+          this.contractForm = {
+            deal_title: this.contractForm.deal_title, marina: '', boat_type: '', cabins: '', clients: '',
+            client_country: '', trip_start: '', trip_end: '', cruise_type: '',
+            client_fullname: '', email: '', phone: '', client_bdate: '',
+            client_passport_number: '', client_passport_date: '',
+            client_passport_text: '', client_passport_bplace: '',
+            price_eur: this.contractForm.price_eur, eur_rate: '', tax_value: '', extra_text: '',
+          };
         },
 
         async generateContract() {

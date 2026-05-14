@@ -1,0 +1,20 @@
+{
+  "short_name": "Bakanov CRM",
+  "name": "Bakanov CRM — Договоры",
+  "description": "Создание договоров из сделок Bitrix24",
+  "version": "1.0.0",
+  "icons": {
+    "16": "https://kapitan.prvms.ru/static/vendor/favicon.ico",
+    "48": "https://kapitan.prvms.ru/static/vendor/favicon.ico"
+  },
+  "placement": [
+    {
+      "handle": "CRM_DEAL_DETAIL_TAB",
+      "title": "Договор",
+      "url": "/bitrix24/contract/"
+    }
+  ],
+  "scopes": [
+    "crm"
+  ]
+}
