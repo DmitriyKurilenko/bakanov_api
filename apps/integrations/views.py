@@ -169,20 +169,9 @@ def bitrix24_contract_generate(request: HttpRequest) -> JsonResponse:
         return JsonResponse({"status": "error", "detail": "Missing deal_id"}, status=400)
 
     try:
-        portal = Bitrix24Portal.objects.get(member_id=member_id, is_active=True)
-    except Bitrix24Portal.DoesNotExist:
-        return JsonResponse({"status": "error", "detail": "Portal not found"}, status=404)
-
-    if not portal.domain:
-        try:
-            from apps.integrations.services.bitrix24_oauth import ensure_valid_token
-            portal = ensure_valid_token(portal)
-            portal.refresh_from_db()
-        except Exception:
-            logger.warning("Cannot refresh portal domain for member_id=%s", member_id)
-
-    try:
-        service = Bitrix24ContractService.from_portal(portal)
+        from apps.integrations.services.bitrix24_service import Bitrix24Client
+        client = Bitrix24Client.from_settings()
+        service = Bitrix24ContractService(client)
         result = service.render_contract(int(deal_id), overrides=overrides)
     except Exception as exc:
         logger.exception("Contract generation failed for deal_id=%s", deal_id)

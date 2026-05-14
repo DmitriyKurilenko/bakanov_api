@@ -281,15 +281,18 @@
           BX24.init(() => {
             this.connected = true;
             BX24.resizeWindow(800, 900);
-            this.loadPipelines();
-            this.loadStages();
-            this.loadDeals();
+            this.loadPipelines(() => {
+              this.loadStages();
+              this.loadDeals();
+            });
           });
         },
 
         getStageName(stageId) {
           if (!stageId) return '';
-          return this.stages[stageId] || stageId;
+          if (this.stages[stageId]) return this.stages[stageId];
+          // Fallback: prettify stage ID
+          return stageId.replace(/_/g, ' ').toLowerCase().replace(/\b\w/g, l => l.toUpperCase());
         },
 
         getPipelineName(categoryId) {
@@ -306,15 +309,25 @@
           }
         },
 
-        loadPipelines() {
+        loadPipelines(callback) {
           BX24.callMethod('crm.dealcategory.list', { select: ['ID', 'NAME'] }, (r) => {
             if (r.data()) {
               this.pipelines = r.data();
             }
+            if (callback) callback();
           });
         },
 
         loadStages() {
+          // Load stages for each pipeline separately
+          this.pipelines.forEach(p => {
+            BX24.callMethod('crm.dealcategory.stage.list', { id: p.ID }, (r) => {
+              if (r.data()) {
+                r.data().forEach(s => { this.stages[s.STATUS_ID] = s.NAME; });
+              }
+            });
+          });
+          // Also load default stages
           BX24.callMethod('crm.status.list', { filter: { ENTITY_ID: 'DEAL_STAGE' } }, (r) => {
             if (r.data()) {
               r.data().forEach(s => { this.stages[s.STATUS_ID] = s.NAME; });
@@ -338,9 +351,9 @@
             const data = r.data();
             if (data && data.length > 0) {
               this.allDeals = this.allDeals.concat(data);
-              const next = r.answer.next;
-              if (next !== undefined && this.allDeals.length < 2000) {
-                this._loadDealsPage(next);
+              // Continue pagination if we got a full page
+              if (data.length >= 50 && this.allDeals.length < 10000) {
+                this._loadDealsPage(start + data.length);
               } else {
                 this.loading = false;
                 this.applyFilter();

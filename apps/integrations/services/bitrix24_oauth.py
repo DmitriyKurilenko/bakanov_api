@@ -21,6 +21,13 @@ def save_portal_from_request(data: dict) -> Bitrix24Portal:
     expires_in = int(data.get("AUTH_EXPIRES", 3600))
     app_status = data.get("status", "L")
 
+    logger.info(
+        "Bitrix24 install data: member_id=%s domain=%s AUTH_ID=%s",
+        member_id,
+        domain,
+        access_token[:10] + "..." if access_token else "empty",
+    )
+
     portal, _ = Bitrix24Portal.objects.update_or_create(
         member_id=member_id,
         defaults={
