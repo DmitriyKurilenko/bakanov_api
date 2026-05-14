@@ -18,7 +18,14 @@ logger = logging.getLogger(__name__)
 @csrf_exempt
 @xframe_options_exempt
 def bitrix24_install(request: HttpRequest) -> HttpResponse:
-    """Handle Bitrix24 local-app install callback (POST inside iframe)."""
+    """Handle Bitrix24 local-app install callback.
+
+    Bitrix24 first makes a GET request to verify the URL is reachable,
+    then POST with credentials inside the iframe.
+    """
+    if request.method == "GET":
+        return render(request, "bitrix24/install_success.html")
+
     if request.method != "POST":
         return render(request, "bitrix24/error.html", {"message": "Method not allowed"}, status=405)
 
@@ -40,7 +47,18 @@ def bitrix24_install(request: HttpRequest) -> HttpResponse:
 @csrf_exempt
 @xframe_options_exempt
 def bitrix24_app(request: HttpRequest) -> HttpResponse:
-    """Main app page rendered inside the Bitrix24 iframe."""
+    """Main app page rendered inside the Bitrix24 iframe.
+
+    Bitrix24 may send GET (initial load) or POST (with auth tokens).
+    """
+    if request.method == "GET":
+        # GET request — render without portal context (BX24 JS SDK handles auth)
+        return render(request, "bitrix24/app.html", {
+            "portal": None,
+            "domain": "",
+            "member_id": "",
+        })
+
     if request.method != "POST":
         return render(request, "bitrix24/error.html", {"message": "Method not allowed"}, status=405)
 
@@ -71,7 +89,17 @@ def bitrix24_app(request: HttpRequest) -> HttpResponse:
 @csrf_exempt
 @xframe_options_exempt
 def bitrix24_contract_form(request: HttpRequest) -> HttpResponse:
-    """Contract form rendered inside the Bitrix24 deal detail tab (placement)."""
+    """Contract form rendered inside the Bitrix24 deal detail tab (placement).
+
+    Bitrix24 may send GET (initial load) or POST (with auth tokens).
+    """
+    if request.method == "GET":
+        return render(request, "bitrix24/contract_form.html", {
+            "portal": None,
+            "domain": "",
+            "member_id": "",
+        })
+
     if request.method != "POST":
         return render(request, "bitrix24/error.html", {"message": "Method not allowed"}, status=405)
 
