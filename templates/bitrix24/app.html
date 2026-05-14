@@ -34,7 +34,7 @@
       <span class="text-sm ml-2" x-text="'Сделка #' + selectedDealId + ' — ' + contractForm.deal_title"></span>
     </div>
 
-    <!-- Deals list (hidden when form open) -->
+    <!-- Deals list -->
     <div x-show="!selectedDealId">
       <div class="card bg-base-100 shadow">
         <div class="card-body p-4">
@@ -57,7 +57,7 @@
                     <td x-text="deal.ID"></td>
                     <td x-text="deal.TITLE"></td>
                     <td x-text="deal.OPPORTUNITY ? deal.OPPORTUNITY + ' EUR' : ''"></td>
-                    <td><span class="badge badge-sm badge-ghost" x-text="deal.STAGE_ID"></span></td>
+                    <td><span class="badge badge-sm badge-ghost" x-text="getStageName(deal.STAGE_ID)"></span></td>
                     <td>
                       <button class="btn btn-primary btn-xs" @click="openContractForm(deal.ID)">
                         Договор
@@ -74,8 +74,9 @@
 
     <!-- Contract form -->
     <div x-show="selectedDealId">
-      <div x-show="contractLoading" class="flex justify-center py-8">
+      <div x-show="contractLoading" class="flex flex-col items-center py-8 gap-2">
         <span class="loading loading-spinner loading-lg"></span>
+        <span class="text-sm opacity-60">Загрузка данных сделки…</span>
       </div>
 
       <div x-show="!contractLoading" class="space-y-3">
@@ -245,6 +246,7 @@
         connected: false,
         loading: true,
         deals: [],
+        stages: {},
         selectedDealId: '',
         contractLoading: false,
         generating: false,
@@ -263,19 +265,48 @@
           BX24.init(() => {
             this.connected = true;
             BX24.resizeWindow(800, 900);
+            this.loadStages();
             this.loadDeals();
+          });
+        },
+
+        getStageName(stageId) {
+          if (!stageId) return '';
+          return this.stages[stageId] || stageId;
+        },
+
+        loadStages() {
+          BX24.callMethod('crm.status.list', { filter: { ENTITY_ID: 'DEAL_STAGE' } }, (r) => {
+            if (r.data()) {
+              r.data().forEach(s => { this.stages[s.STATUS_ID] = s.NAME; });
+            }
           });
         },
 
         loadDeals() {
           this.loading = true;
+          this.deals = [];
+          this._loadDealsPage(0);
+        },
+
+        _loadDealsPage(start) {
           BX24.callMethod('crm.deal.list', {
             order: { ID: 'DESC' },
             select: ['ID', 'TITLE', 'OPPORTUNITY', 'STAGE_ID'],
-            start: 0,
+            start: start,
           }, (r) => {
-            this.deals = r.data() ? r.data().slice(0, 50) : [];
-            this.loading = false;
+            const data = r.data();
+            if (data && data.length > 0) {
+              this.deals = this.deals.concat(data);
+              const next = r.answer.next;
+              if (next !== undefined && this.deals.length < 500) {
+                this._loadDealsPage(next);
+              } else {
+                this.loading = false;
+              }
+            } else {
+              this.loading = false;
+            }
           });
         },
 
@@ -283,48 +314,33 @@
           this.selectedDealId = String(dealId);
           this.contractResult = null;
           this.contractLoading = true;
-          this.resetForm();
 
           const deal = this.deals.find(d => String(d.ID) === String(dealId));
-          if (deal) {
-            this.contractForm.deal_title = deal.TITLE || '';
-            this.contractForm.price_eur = deal.OPPORTUNITY || '';
-          }
+          this.contractForm.deal_title = deal ? (deal.TITLE || '') : '';
+          this.contractForm.price_eur = deal ? (deal.OPPORTUNITY || '') : '';
 
-          const batch = { deal: ['crm.deal.get', { ID: dealId }] };
+          BX24.callMethod('crm.deal.get', { ID: dealId }, (r) => {
+            const dealData = r.data();
+            if (!dealData) {
+              this.contractLoading = false;
+              return;
+            }
+            this.contractForm.price_eur = dealData.OPPORTUNITY || '';
 
-          BX24.callBatch(batch, (r) => {
-            const dealData = r.deal.data();
-            if (dealData) {
-              this.contractForm.price_eur = dealData.OPPORTUNITY || '';
-              if (dealData.CONTACT_ID) {
-                BX24.callMethod('crm.contact.get', { ID: dealData.CONTACT_ID }, (res) => {
-                  const c = res.data();
-                  if (c) {
-                    this.contractForm.client_fullname = [c.LAST_NAME, c.NAME, c.SECOND_NAME].filter(Boolean).join(' ');
-                    if (c.EMAIL && c.EMAIL.length) this.contractForm.email = c.EMAIL[0].VALUE || '';
-                    if (c.PHONE && c.PHONE.length) this.contractForm.phone = c.PHONE[0].VALUE || '';
-                  }
-                  this.contractLoading = false;
-                });
-              } else {
+            if (dealData.CONTACT_ID) {
+              BX24.callMethod('crm.contact.get', { ID: dealData.CONTACT_ID }, (res) => {
+                const c = res.data();
+                if (c) {
+                  this.contractForm.client_fullname = [c.LAST_NAME, c.NAME, c.SECOND_NAME].filter(Boolean).join(' ');
+                  if (c.EMAIL && c.EMAIL.length) this.contractForm.email = c.EMAIL[0].VALUE || '';
+                  if (c.PHONE && c.PHONE.length) this.contractForm.phone = c.PHONE[0].VALUE || '';
+                }
                 this.contractLoading = false;
-              }
+              });
             } else {
               this.contractLoading = false;
             }
           });
-        },
-
-        resetForm() {
-          this.contractForm = {
-            deal_title: this.contractForm.deal_title, marina: '', boat_type: '', cabins: '', clients: '',
-            client_country: '', trip_start: '', trip_end: '', cruise_type: '',
-            client_fullname: '', email: '', phone: '', client_bdate: '',
-            client_passport_number: '', client_passport_date: '',
-            client_passport_text: '', client_passport_bplace: '',
-            price_eur: this.contractForm.price_eur, eur_rate: '', tax_value: '', extra_text: '',
-          };
         },
 
         async generateContract() {
