@@ -38,26 +38,39 @@
     <div x-show="!selectedDealId">
       <div class="card bg-base-100 shadow">
         <div class="card-body p-4">
-          <div class="flex items-center justify-between mb-2">
+          <div class="flex items-center justify-between mb-3">
             <h2 class="card-title text-sm">Сделки</h2>
             <button class="btn btn-ghost btn-xs" @click="loadDeals()">⟳</button>
           </div>
-          <div x-show="loading" class="flex justify-center py-4">
-            <span class="loading loading-spinner loading-md"></span>
+
+          <!-- Pipeline filter -->
+          <div class="mb-3">
+            <select class="select select-bordered select-sm w-full" x-model="selectedPipeline" @change="applyFilter()">
+              <option value="">Все воронки</option>
+              <template x-for="p in pipelines" :key="p.ID">
+                <option :value="p.ID" x-text="p.NAME"></option>
+              </template>
+            </select>
           </div>
-          <div x-show="!loading && deals.length === 0" class="text-sm opacity-50">Нет сделок</div>
-          <div class="overflow-x-auto" x-show="!loading && deals.length > 0">
+
+          <div x-show="loading" class="flex flex-col items-center py-4 gap-2">
+            <span class="loading loading-spinner loading-md"></span>
+            <span class="text-sm opacity-60" x-text="'Загрузка сделок… ' + deals.length"></span>
+          </div>
+          <div x-show="!loading && filteredDeals.length === 0" class="text-sm opacity-50">Нет сделок</div>
+          <div class="overflow-x-auto" x-show="!loading && filteredDeals.length > 0">
             <table class="table table-xs">
               <thead>
-                <tr><th>ID</th><th>Название</th><th>Сумма</th><th>Статус</th><th></th></tr>
+                <tr><th>ID</th><th>Название</th><th>Воронка</th><th>Статус</th><th>Сумма</th><th></th></tr>
               </thead>
               <tbody>
-                <template x-for="deal in deals" :key="deal.ID">
+                <template x-for="deal in filteredDeals" :key="deal.ID">
                   <tr>
                     <td x-text="deal.ID"></td>
                     <td x-text="deal.TITLE"></td>
-                    <td x-text="deal.OPPORTUNITY ? deal.OPPORTUNITY + ' EUR' : ''"></td>
+                    <td><span class="badge badge-sm badge-outline" x-text="getPipelineName(deal.CATEGORY_ID)"></span></td>
                     <td><span class="badge badge-sm badge-ghost" x-text="getStageName(deal.STAGE_ID)"></span></td>
+                    <td x-text="deal.OPPORTUNITY ? deal.OPPORTUNITY + ' EUR' : ''"></td>
                     <td>
                       <button class="btn btn-primary btn-xs" @click="openContractForm(deal.ID)">
                         Договор
@@ -245,8 +258,11 @@
         memberId: '{{ member_id }}',
         connected: false,
         loading: true,
-        deals: [],
+        allDeals: [],
+        filteredDeals: [],
+        pipelines: [],
         stages: {},
+        selectedPipeline: '',
         selectedDealId: '',
         contractLoading: false,
         generating: false,
@@ -265,6 +281,7 @@
           BX24.init(() => {
             this.connected = true;
             BX24.resizeWindow(800, 900);
+            this.loadPipelines();
             this.loadStages();
             this.loadDeals();
           });
@@ -273,6 +290,28 @@
         getStageName(stageId) {
           if (!stageId) return '';
           return this.stages[stageId] || stageId;
+        },
+
+        getPipelineName(categoryId) {
+          if (!categoryId && categoryId !== 0) return '';
+          const p = this.pipelines.find(p => String(p.ID) === String(categoryId));
+          return p ? p.NAME : (categoryId === '0' ? 'Основная' : '#' + categoryId);
+        },
+
+        applyFilter() {
+          if (!this.selectedPipeline) {
+            this.filteredDeals = this.allDeals;
+          } else {
+            this.filteredDeals = this.allDeals.filter(d => String(d.CATEGORY_ID) === String(this.selectedPipeline));
+          }
+        },
+
+        loadPipelines() {
+          BX24.callMethod('crm.dealcategory.list', { select: ['ID', 'NAME'] }, (r) => {
+            if (r.data()) {
+              this.pipelines = r.data();
+            }
+          });
         },
 
         loadStages() {
@@ -285,27 +324,30 @@
 
         loadDeals() {
           this.loading = true;
-          this.deals = [];
+          this.allDeals = [];
           this._loadDealsPage(0);
         },
 
         _loadDealsPage(start) {
           BX24.callMethod('crm.deal.list', {
             order: { ID: 'DESC' },
-            select: ['ID', 'TITLE', 'OPPORTUNITY', 'STAGE_ID'],
+            filter: { CLOSED: 'N' },
+            select: ['ID', 'TITLE', 'OPPORTUNITY', 'STAGE_ID', 'CATEGORY_ID'],
             start: start,
           }, (r) => {
             const data = r.data();
             if (data && data.length > 0) {
-              this.deals = this.deals.concat(data);
+              this.allDeals = this.allDeals.concat(data);
               const next = r.answer.next;
-              if (next !== undefined && this.deals.length < 500) {
+              if (next !== undefined && this.allDeals.length < 2000) {
                 this._loadDealsPage(next);
               } else {
                 this.loading = false;
+                this.applyFilter();
               }
             } else {
               this.loading = false;
+              this.applyFilter();
             }
           });
         },
@@ -315,7 +357,7 @@
           this.contractResult = null;
           this.contractLoading = true;
 
-          const deal = this.deals.find(d => String(d.ID) === String(dealId));
+          const deal = this.allDeals.find(d => String(d.ID) === String(dealId));
           this.contractForm.deal_title = deal ? (deal.TITLE || '') : '';
           this.contractForm.price_eur = deal ? (deal.OPPORTUNITY || '') : '';
 
