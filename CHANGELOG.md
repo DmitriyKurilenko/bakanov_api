@@ -2,6 +2,22 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.3.1-dev] — 2026-05-15
+
+### Fixed
+- Bitrix24 spam → Метрика: устранена корневая причина полной остановки флоу — `ModuleNotFoundError: django_redis` (KI-002). Дедупликация переведена на штатный пакет `redis` через `apps/integrations/services/redis_client.py`
+- Транзиентные ошибки Bitrix/Metrica (`requests.RequestException`) теперь пробрасываются и ретраятся Celery вместо тихой потери конверсии
+- Эндпоинт `/webhooks/bitrix24/spam-lead` приведён к реальному формату outgoing webhook Bitrix24: убрана излишняя проверка токена, добавлена поддержка явного `entity_id` + стандартного `data[FIELDS][ID]`
+
+### Added
+- Надёжность флоу: декуплинг спам-загрузки от generic webhook, дедуп-замок с корректным снятием при сбоях, алерты в Telegram при окончательных ошибках
+- Env-переменная `BITRIX24_SPAM_DEDUP_TTL` (по умолчанию 3600 с) для настройки окна дедупликации
+- 8 тестов `test_bitrix24_spam_auto_dispatch.py` для покрытия диспатча, ретрая, дедупа и громких сбоев
+
+### Changed
+- `process_bitrix24_webhook` теперь диспатчит `process_bitrix24_spam_lead_webhook` как отдельную Celery-задачу вместо синхронного вызова
+- `config/settings.py`: `REDIS_URL` вынесен в отдельную переменную для переиспользования
+
 ## [0.3.0-dev] — 2026-05-14
 
 ### Added

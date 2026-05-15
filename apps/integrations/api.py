@@ -301,13 +301,24 @@ def bitrix24_spam_lead_webhook(request):
     """
     data = _extract_request_payload(request)
 
-    # Use the same proven parser as the main Bitrix24 webhook
-    _event, entity_id, _token = extract_webhook_payload(data)
+    # Accept two shapes:
+    #  1. Explicit manual/test trigger: entity_id=<id>&entity_type=lead|deal
+    #  2. Standard Bitrix24 outgoing webhook: event=...&data[FIELDS][ID]=<id>
+    raw_entity_id = data.get("entity_id")
+    if raw_entity_id is not None:
+        raw_str = str(raw_entity_id).strip()
+        if not raw_str.isdigit():
+            return {"status": "error", "detail": "Invalid entity_id"}
+        entity_id = int(raw_str)
+    else:
+        _event, entity_id, _token = extract_webhook_payload(data)
 
     if entity_id is None:
         return {"status": "error", "detail": "Missing entity_id"}
 
     entity_type = str(data.get("entity_type", "lead")).strip().lower()
+    if entity_type not in {"lead", "deal"}:
+        entity_type = "lead"
 
     task = process_bitrix24_spam_lead_webhook.delay(
         entity_id=entity_id,

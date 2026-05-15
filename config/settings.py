@@ -109,8 +109,9 @@ LOGIN_URL = "login"
 LOGIN_REDIRECT_URL = "dashboard:home"
 LOGOUT_REDIRECT_URL = "login"
 
-CELERY_BROKER_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
-CELERY_RESULT_BACKEND = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+CELERY_BROKER_URL = REDIS_URL
+CELERY_RESULT_BACKEND = REDIS_URL
 CELERY_ACCEPT_CONTENT = ["json"]
 CELERY_TASK_SERIALIZER = "json"
 CELERY_RESULT_SERIALIZER = "json"
@@ -175,6 +176,10 @@ BITRIX24_APP_SECRET = os.getenv("BITRIX24_APP_SECRET", "")
 BITRIX24_SPAM_CLIENT_ID_FIELD_CODES = os.getenv("BITRIX24_SPAM_CLIENT_ID_FIELD_CODES", "")
 BITRIX24_SPAM_CLIENT_ID_FIELD_NAMES = os.getenv("BITRIX24_SPAM_CLIENT_ID_FIELD_NAMES", "")
 BITRIX24_SPAM_STATUS_ID = os.getenv("BITRIX24_SPAM_STATUS_ID", "IN_PROCESS")
+# Per-entity dedup window (seconds) for the spam→Metrica upload. Bitrix fires
+# ONCRMLEADUPDATE many times while a lead sits in the СПАМ stage; this absorbs
+# those bursts while still allowing a later re-entry to re-upload.
+BITRIX24_SPAM_DEDUP_TTL = int(os.getenv("BITRIX24_SPAM_DEDUP_TTL", "3600"))
 
 # Bitrix24 Contract Field Mapping (UF_CRM_* codes)
 BITRIX24_CONTRACT_FIELD_MARINA = os.getenv("BITRIX24_CONTRACT_FIELD_MARINA", "")

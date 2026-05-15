@@ -122,3 +122,19 @@
 - Маппинг полей через env-переменные (`BITRIX24_CONTRACT_FIELD_*`).
 
 **Последствия:** Требуется настроить `BITRIX24_CONTRACT_FIELD_*` в `.env` под реальные UF_CRM_* коды портала. Регистрация placement в manifest приложения.
+
+---
+
+## DEC-009: Bitrix24 spam → Метрика — устойчивость флоу (2026-05-15)
+
+**Контекст:** Флоу передачи спам-лидов из Bitrix24 в Яндекс.Метрику «сработал один-два раза и перестал». Корневая причина: коммит `0ceba61` добавил `from django_redis import get_redis_connection` в задачу дедупликации, но пакет `django-redis` не входит в стек (нет в `requirements.txt`, `CACHES` не настроен). Каждый вызов `process_bitrix24_spam_lead_webhook` падал с `ModuleNotFoundError`. Сопутствующие дефекты: тихое проглатывание транзиентных ошибок Bitrix (конверсия терялась без ретрая и следа), связанность спам-загрузки с обработкой generic-вебхука, отсутствие алертов.
+
+**Решение:**
+- Дедуп переведён на штатный клиент `redis` (уже зависимость брокера Celery) через новый хелпер `apps/integrations/services/redis_client.py` и `settings.REDIS_URL`. **`django-redis` не вводится** — стек не расширяется (DEC-001).
+- Спам-загрузка декуплирована: `process_bitrix24_webhook` при `ONCRMLEADUPDATE` + `STATUS_ID == BITRIX24_SPAM_STATUS_ID` **диспатчит** отдельную задачу `process_bitrix24_spam_lead_webhook` (свой ретрай и дедуп), а не вызывает sync инлайн. Сбой Метрики больше не роняет обработку обычных вебхуков.
+- Транзиентные ошибки Bitrix (`requests.RequestException`) в `_fetch_entity`/`_fetch_contact`/`_fetch_company` пробрасываются → Celery autoretry, вместо «entity not found» и тихой потери.
+- Любой окончательный сбой (нет client_id, не настроен токен Метрики, неожиданная ошибка) логируется на ERROR и шлёт алерт в Telegram. Никаких тихих сбоев.
+- Дедуп-замок снимается при любом сбое (ретрай/передоставка может отработать) и сохраняется/продлевается только при успехе. TTL вынесен в `BITRIX24_SPAM_DEDUP_TTL` (по умолчанию 3600 с) — гасит всплески `ONCRMLEADUPDATE`, пока лид в этапе СПАМ, но допускает повторную загрузку при возврате позже.
+- Эндпоинт `/webhooks/bitrix24/spam-lead` принимает оба формата: явный `entity_id`/`entity_type` (ручной/тестовый триггер) и стандартный outgoing-webhook (`event` + `data[FIELDS][ID]`). Эндпоинт намеренно без проверки токена: штатный outgoing-вебхук Bitrix24 не несёт `application_token`, совпадающий с `BITRIX24_INBOUND_TOKEN` (продолжение решения коммита `e042ece`). Статус-aware путь `/webhooks/bitrix24` остаётся под токеном.
+
+**Последствия:** Дедуп-загрузка спам-лидов работает на штатном Redis. Требуется `REDIS_URL` (уже есть) и заполненные `YANDEX_METRIKA_TOKEN`/`YANDEX_METRIKA_COUNTER_ID` на проде. При пустых креденшелах флоу не работает, но теперь это **громко** видно (ERROR + Telegram), а не тихо.

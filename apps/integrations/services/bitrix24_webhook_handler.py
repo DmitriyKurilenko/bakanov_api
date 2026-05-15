@@ -1,6 +1,7 @@
 import logging
 from dataclasses import dataclass, field
 
+import requests
 from django.conf import settings
 
 from apps.integrations.services.bitrix24_service import Bitrix24Client
@@ -166,9 +167,22 @@ class Bitrix24WebhookProcessor:
                 return client.get_deal(entity_id)
             if event in CONTACT_EVENTS:
                 return client.get_contact(entity_id)
+        except requests.RequestException:
+            # Transient/transport error (rate limit, network, Bitrix 5xx,
+            # revoked token).  Propagate so the Celery task retries instead
+            # of silently treating the entity as "no data" and dropping the
+            # downstream spam-conversion upload.
+            logger.warning(
+                "Bitrix24: transient fetch error for %s id=%s — will retry",
+                event,
+                entity_id,
+            )
+            raise
         except Exception:
+            # Unexpected non-transport error: don't poison generic webhook
+            # processing, but make it loud in logs.
             logger.exception(
-                "Bitrix24: failed to fetch entity for %s id=%s",
+                "Bitrix24: unexpected error fetching entity for %s id=%s",
                 event,
                 entity_id,
             )

@@ -51,19 +51,27 @@ class Bitrix24SpamWebhookApiTests(SimpleTestCase):
         self.assertEqual(body["entity_id"], 456)
         mock_delay.assert_called_once_with(entity_id=456, entity_type="deal")
 
-    def test_invalid_token_rejected(self):
-        response = self.client.post(
-            self.endpoint,
-            data={
-                "entity_type": "lead",
-                "entity_id": "123",
-                "auth[application_token]": "wrong",
-            },
-        )
+    def test_no_token_required_for_standard_outgoing_webhook(self):
+        """DEC-009: standard Bitrix24 outgoing webhooks do not carry a token
+        matching BITRIX24_INBOUND_TOKEN, so this endpoint is intentionally
+        token-free. A request with no/foreign token must still be queued."""
+        with patch(
+            "apps.integrations.api.process_bitrix24_spam_lead_webhook.delay",
+            return_value=SimpleNamespace(id="task-no-token"),
+        ) as mock_delay:
+            response = self.client.post(
+                self.endpoint,
+                data={
+                    "entity_type": "lead",
+                    "entity_id": "123",
+                    "auth[application_token]": "wrong",
+                },
+            )
         self.assertEqual(response.status_code, 200)
         body = response.json()
-        self.assertEqual(body["status"], "error")
-        self.assertIn("Invalid token", body["detail"])
+        self.assertEqual(body["status"], "ok")
+        self.assertEqual(body["entity_id"], 123)
+        mock_delay.assert_called_once_with(entity_id=123, entity_type="lead")
 
     def test_missing_entity_id(self):
         response = self.client.post(

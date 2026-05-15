@@ -4,6 +4,7 @@ from dataclasses import dataclass
 import logging
 import time
 
+import requests
 from django.conf import settings
 
 from apps.integrations.services.bitrix24_service import Bitrix24Client
@@ -138,20 +139,48 @@ class Bitrix24SpamLeadSyncService:
                     uf_keys,
                 )
             return result
+        except requests.RequestException:
+            # Transient Bitrix error — propagate so the Celery task retries
+            # rather than mis-reporting the entity as "not found" and
+            # permanently losing the conversion.
+            logger.warning(
+                "Bitrix24 spam: transient fetch error for %s id=%s — will retry",
+                entity_type,
+                entity_id,
+            )
+            raise
         except Exception:
+            logger.exception(
+                "Bitrix24 spam: unexpected error fetching %s id=%s",
+                entity_type,
+                entity_id,
+            )
             return {}
-        return {}
 
     def _fetch_contact(self, contact_id: int) -> dict:
         try:
             return self.client.get_contact(contact_id)
+        except requests.RequestException:
+            logger.warning(
+                "Bitrix24 spam: transient fetch error for contact id=%s — will retry",
+                contact_id,
+            )
+            raise
         except Exception:
+            logger.exception("Bitrix24 spam: unexpected error fetching contact id=%s", contact_id)
             return {}
 
     def _fetch_company(self, company_id: int) -> dict:
         try:
             return self.client.get_company(company_id)
+        except requests.RequestException:
+            logger.warning(
+                "Bitrix24 spam: transient fetch error for company id=%s — will retry",
+                company_id,
+            )
+            raise
         except Exception:
+            logger.exception("Bitrix24 spam: unexpected error fetching company id=%s", company_id)
             return {}
 
     @staticmethod

@@ -14,6 +14,22 @@
 
 ---
 
+### 2026-05-15 — Bitrix24 spam → Метрика: восстановление и закалка флоу
+
+- **Файлы:**
+  - `apps/integrations/tasks.py` — `process_bitrix24_webhook` декуплирован (диспатч отдельной задачи); `process_bitrix24_spam_lead_webhook` переписан: штатный redis-клиент, корректный dedup/retry, громкие сбои + Telegram
+  - `apps/integrations/services/redis_client.py` — новый: `get_redis_client()` на пакете `redis` (без `django-redis`)
+  - `apps/integrations/services/bitrix24_webhook_handler.py` — `_fetch_entity` пробрасывает `requests.RequestException` (ретрай вместо тихой потери)
+  - `apps/integrations/services/bitrix24_spam_lead_service.py` — `_fetch_entity/_fetch_contact/_fetch_company` пробрасывают транзиентные ошибки
+  - `apps/integrations/api.py` — `bitrix24_spam_lead_webhook` принимает явный `entity_id` и стандартный outgoing payload
+  - `config/settings.py` — `REDIS_URL` вынесен, добавлен `BITRIX24_SPAM_DEDUP_TTL`
+  - `apps/integrations/tests/test_bitrix24_spam_auto_dispatch.py` — новый: 8 тестов (диспатч, ретрай, dedup, громкие сбои)
+  - `apps/integrations/tests/test_bitrix24_spam_webhook_api.py` — тест токена приведён к DEC-009
+  - docs: DECISIONS (DEC-009), KNOWN_ISSUES (KI-002 closed, KI-003 open), TASK_STATE, RELEASE_NOTES
+- **Что сделано:** Найдена и устранена корневая причина «сработал 1-2 раза и перестал» — `ModuleNotFoundError: django_redis` (коммит `0ceba61`). Дедуп переведён на штатный `redis`. Флоу закалён: декуплинг от generic-вебхука, ретраи на транзиентных ошибках, громкие алерты вместо тихих сбоев, корректное взаимодействие dedup+retry.
+- **Валидация:** `manage.py check` — OK. Целевые тесты изменённых модулей — 59/59 OK. Полный прогон — 141/146 (5 падений — незавершённая фича договоров, KI-003, не регрессия: затронутые модули не менялись). Сборка образа OK, импорт `redis_client` OK.
+- **Риски:** На проде нужны заполненные `YANDEX_METRIKA_TOKEN`/`YANDEX_METRIKA_COUNTER_ID` (подтверждено пользователем — заполнены). KI-003 (тесты договоров) вне scope.
+
 ### 2026-05-14 — Bitrix24: генерация договоров (iframe placement)
 
 - **Файлы:**

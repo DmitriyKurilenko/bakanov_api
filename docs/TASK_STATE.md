@@ -21,7 +21,8 @@
 | 5 | Создание полной документации проекта | done | docs/PROJECT_OVERVIEW.md |
 | 6 | Bitrix24 — фильтр спам-заявок (аналог amoCRM) | done | Сервис, endpoint, Celery, логирование, 22 теста |
 | 7 | Bitrix24 spam lead: автозагрузка при статусе СПАМ | done | Автотриггер на ONCRMLEADUPDATE, BITRIX24_SPAM_STATUS_ID |
-| 8 | Bitrix24 — генерация договоров (iframe placement) | in-progress | Сервис, views, шаблон, тесты. Осталось: manifest placement |
+| 8 | Bitrix24 — генерация договоров (iframe placement) | in-progress | Сервис, views, шаблон, тесты. Осталось: manifest placement. KI-003: 5 тестов падают |
+| 9 | Bitrix24 spam → Метрика: восстановление флоу | done | Корень: ModuleNotFoundError django_redis. Дедуп на штатном redis, декуплинг, ретраи, алерты, 8 тестов |
 
 ---
 
@@ -34,3 +35,4 @@
 | 4 | Битрикс24 — встроенное приложение | 2026-04-10 | OAuth, Bitrix24Portal model, iframe views, DaisyUI UI, BX24 JS SDK, 16 тестов |
 | 6 | Bitrix24 — фильтр спам-заявок (аналог amoCRM) | 2026-05-13 | Сервис, endpoint, Celery, логирование, 22 теста |
 | 7 | Bitrix24 spam lead: автозагрузка при статусе СПАМ | 2026-05-13 | Автотриггер на ONCRMLEADUPDATE, BITRIX24_SPAM_STATUS_ID |
+| 9 | Bitrix24 spam → Метрика: восстановление флоу | 2026-05-15 | Фикс django_redis, дедуп на штатном redis, декуплинг, ретраи, алерты |
